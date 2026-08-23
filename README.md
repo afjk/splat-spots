@@ -15,13 +15,12 @@ Unofficial and not affiliated with Insta360.**
 ## 原則
 
 > Splat Spots does not crawl Insta360 or automatically discover captures.
-> Every listing originates from a URL submitted by a person and is reviewed
-> before publication.
+> Every listing originates from a URL submitted by a person.
 
 - **Capture のホストにはならない。**`.sog` / `.ply` / 動画 / 画像を保存・再配布しない
 - **Insta360 の内部 API を使わない。**共有ページを bot として取得もしない
 - **自動収集をしない。**掲載はすべて人が投稿したリンクから始まる
-- **即時公開しない。**人が確認してから掲載する
+- **即時公開する。**掲載前の確認は挟まない。防御は事後（[理由](docs/direction.md#なぜ事前確認をやめたか)）
 - **削除依頼に速やかに応じる**
 - **公式と誤認される表示をしない**
 
@@ -31,16 +30,21 @@ Insta360 由来の画像は使っていません。
 ## 構成
 
 ```
-data/captures/<id>.json   公開カタログの「正」。1キャプチャ1ファイル
+data/captures/<id>.json   コミット済みのカタログ。1キャプチャ1ファイル
+worker/                   Cloudflare Worker + D1（投稿の受付とライブなカタログ）
 src/                      Astro の静的サイト
+  lib/live.ts               API から来た行の検証（テスト対象）
+  lib/live-card.ts          ライブな分のカード生成（textContent のみ）
+  pages/404.astro           ビルド後に追加されたスポットの /s/<id>
+  lib/capture-id.ts         URL の検証と ID 抽出（ローカル処理のみ）
 scripts/                  掲載と削除
   lib/catalog.mts           レコードの読み書き
-src/lib/capture-id.ts     URL の検証と ID 抽出（ローカル処理のみ）
-worker/                   Cloudflare Worker + D1（推薦の受付）
 .github/workflows/        GitHub Pages と Worker のデプロイ
 ```
 
-サイトは `data/captures/` の純粋な関数です。**1ファイル消せば、その空間は掲載から外れます。**
+カタログは2つに割れています。**git の分**はビルド時に実 HTML になり、
+**D1 の分**はギャラリーが読み込み後に取得して足します。
+同じ id が両方にあれば git が勝ちます。
 
 ## 使い方
 
@@ -53,16 +57,10 @@ npm test             # 型チェック + ユニットテスト
 npm run build        # dist/ へ静的生成
 ```
 
-### 掲載する
+### git に残す
 
-推薦を受け取ったら、**まず自分でURLを開いて確認します。**
-
-- 実際に開けるか
-- Spatial Capture か
-- 明らかに不適切な内容でないか
-
-Splat Spots は Insta360 に問い合わせません。公開されているかどうかは、この目視確認が
-唯一の判断材料です。
+投稿はフォームから入った時点でもう載っています。この操作は、**残したいものを
+コミット済みの側へ移す**ためのものです。移しても URL は変わりません。
 
 ```bash
 node scripts/add-capture.mts 'https://app.insta360.com/3dspace/detail/GS3DG…' \
@@ -81,15 +79,21 @@ npm がオプションを自分のフラグとして食べるためで、直接�
 
 ### 削除依頼に対応する
 
+掲載は git と D1 の2箇所から来るので、**外すのも2箇所**です。
+`npm run remove` は git のファイルを消し、D1 側の UPDATE を必ず出力します。
+
 ```bash
 npm run remove -- 'GS3DG…'        # --dry-run で確認だけ
-git commit -am '…' && git push    # 公開サイトから消える
+git commit -am '…' && git push    # ビルド済みの側から消える
+
+npx wrangler d1 execute splat-spots --remote -c worker/wrangler.toml \
+  --command "UPDATE submissions SET status='removed' WHERE capture_id='GS3DG…'"
 ```
 
-Splat Spots はレコードしか持っていないので、**JSONを消せば削除は完了**です。
-画像も動画も保持していません。
+`removed` にした id は、**再投稿されても戻りません。**
+Splat Spots はレコードしか持っていないので、これで削除は完了です。
 
-対応後、受付側の状態も更新します。
+依頼への対応が済んだら、受付側の状態も更新します。
 
 ```bash
 npx wrangler d1 execute splat-spots --remote -c worker/wrangler.toml \
@@ -98,20 +102,24 @@ npx wrangler d1 execute splat-spots --remote -c worker/wrangler.toml \
 
 ## API（Cloudflare Worker）
 
-推薦フォームと削除依頼の受け口です。
+投稿と削除依頼の受け口であり、ライブなカタログでもあります。
 
 | エンドポイント | 用途 |
 |---|---|
-| `POST /api/submissions` | URL を検証して D1 のキューへ |
+| `POST /api/submissions` | URL を検証して D1 へ。**その時点で掲載** |
+| `GET /api/captures` | ライブなカタログ（ギャラリーが読み込み後に取得） |
 | `POST /api/reports` | 削除・修正依頼を D1 へ |
-| `GET /api/queue` | 未処理の推薦と依頼を返す（Bearer 認証） |
+| `GET /api/queue` | 入ってきたものと未処理の依頼（Bearer 認証） |
 
 **Worker は Insta360 に一切アクセスしません。** することは URL の parse、hostname と
-形式の確認、ID 抽出、重複の集約、D1 への保存まで。公開されているかどうかの判断は
-掲載前の目視確認に委ねます。
+形式の確認、ID 抽出、重複の集約、D1 への読み書きまで。実際に公開されているかどうかは
+確かめません。
 
-**D1 に入った時点では何も公開されません。**人が確認して `data/captures/` に
-コミットして初めて掲載されます。
+事前の確認がない代わりに、次を置いています。
+
+- ハニーポット項目（埋まっていたら保存せず成功を返す）
+- 1時間あたりの投稿数の上限（投稿20 / 依頼10。IP はハッシュ化して数えるだけ）
+- 投稿者が入れた文字列は必ず `textContent` で描画（`src/lib/live-card.ts`）
 
 ### セットアップ
 
@@ -138,17 +146,19 @@ cd worker && npx wrangler dev            # .dev.vars は cwd から読まれる
 PUBLIC_API_BASE_URL=http://localhost:8787 npm run dev
 ```
 
-### キューを取り込む
+### 入ってきたものを見る
 
 ```bash
 curl -H "Authorization: Bearer $QUEUE_TOKEN" https://<api>/api/queue
 ```
 
-返ってきたURLを開いて確認し、掲載するものを `add-capture.mts` で登録します。
+最近の投稿と、未処理の削除・修正依頼が返ります。外すものは上の UPDATE で外し、
+残すものは `add-capture.mts` で git に落とします。
 
 ## スコープ外
 
 - 広域クロールや ID 列挙による発見
 - Capture 本体や派生画像の保持
 - Insta360 の内部 API を用いた自動確認
+- 掲載前の人手による確認
 - ユーザーアカウント、コメント、いいね

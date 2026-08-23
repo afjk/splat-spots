@@ -1,0 +1,25 @@
+---
+/**
+ * The client-side twin of CaptureCard.astro, for listings that arrive from the
+ * API after the page was built. Same classes, same structure, empty slots that
+ * `live-card.ts` fills with text. Edit the two together.
+ */
+---
+
+<template id="capture-card-template">
+  <article class="capture-card" data-capture data-live>
+    <a class="capture-visual" data-slot="visual">
+      <span class="visual-overlay">
+        <span class="visual-kicker">Splat Spot</span>
+        <span class="visual-meta" data-slot="meta"></span>
+        <span class="visual-cta">View Spatial Capture →</span>
+      </span>
+    </a>
+    <div class="capture-body">
+      <h3><a data-slot="title"></a></h3>
+      <p class="capture-blurb" data-slot="blurb" hidden></p>
+      <p class="capture-meta" data-slot="author" hidden></p>
+      <div class="capture-tags" data-slot="tags" hidden></div>
+    </div>
+  </article>
+</template>

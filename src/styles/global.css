@@ -607,6 +607,8 @@ button, input { font: inherit; color: inherit; }
   color: #9ff0bd;
 }
 .form-message strong { display: block; margin-bottom: 4px; color: inherit; }
+/* The success message is now a way into the listing, so its links must read as links. */
+.form-message a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
 
 .api-missing {
   margin-top: 30px;

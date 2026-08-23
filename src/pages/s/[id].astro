@@ -30,7 +30,7 @@ const reportUrl = href(`/report?capture=${encodeURIComponent(capture.id)}`);
       <a class="btn btn-primary" href={launch} target="_blank" rel="noreferrer">
         フルスクリーンで開く / Enter VR ↗
       </a>
-      <a class="btn btn-ghost" href={capture.insta360_url} target="_blank" rel="noreferrer">
+      <a class="btn btn-ghost" href={capture.url} target="_blank" rel="noreferrer">
         Insta360 で見る ↗
       </a>
     </div>
@@ -65,33 +65,23 @@ const reportUrl = href(`/report?capture=${encodeURIComponent(capture.id)}`);
         {date && <div><dt>撮影日</dt><dd>{date}</dd></div>}
         {capture.camera && <div><dt>カメラ</dt><dd>{capture.camera}</dd></div>}
         <div><dt>撮影者</dt><dd>{capture.author ?? "未確認"}</dd></div>
-        <div>
-          <dt>出典</dt>
-          <dd>
-            {capture.source_post ? (
-              <a href={capture.source_post} target="_blank" rel="noreferrer">
+        {capture.source_post && (
+          <div>
+            <dt>出典</dt>
+            <dd>
+              <a href={capture.source_post} target="_blank" rel="nofollow noreferrer">
                 {capture.source_post}
               </a>
-            ) : ("記載なし")}
-          </dd>
-        </div>
+            </dd>
+          </div>
+        )}
         <div><dt>掲載日</dt><dd>{displayDate(capture.submitted_at) ?? capture.submitted_at}</dd></div>
-        <div>
-          <dt>ホスティング</dt>
-          <dd>
-            Capture 本体は Insta360 が配信しています。Splat Spots はリンクと
-            上記の情報だけを持っています。
-          </dd>
-        </div>
       </dl>
     </div>
 
     <aside class="side-card">
       <p class="eyebrow">Creator control</p>
-      <p>
-        この空間の撮影者・権利者の方へ。掲載の停止や情報の修正はいつでも受け付けます。
-        ご連絡いただければ速やかに掲載を外します。
-      </p>
+      <p>撮影者・権利者の方へ。ご連絡いただければ速やかに掲載を外します。</p>
       <a class="block" href={reportUrl}>Report / Request removal →</a>
     </aside>
   </section>

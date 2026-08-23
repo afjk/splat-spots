@@ -1,14 +1,14 @@
 /**
- * Splat Spots API — the intake for community recommendations.
+ * Splat Spots API — the intake, and the live half of the catalog.
  *
- * It parses the submitted URL, checks it is shaped like an Insta360 Spatial
- * Capture share link, and parks it in D1. It deliberately does not contact
- * Insta360: no API call, no fetching the share page. Whether a capture is
- * really public is decided by a person opening the link during review, which
- * keeps Splat Spots from behaving like a bot against someone else's service.
+ * A submission is published the moment it arrives. The Worker parses the URL,
+ * checks it is shaped like an Insta360 Spatial Capture share link, and stores
+ * it as a listing. It deliberately does not contact Insta360: no API call, no
+ * fetching the share page, so nothing here behaves like a bot against someone
+ * else's service.
  *
- * It never publishes anything. The published catalog lives in git, and a
- * submission only becomes a listing when a person commits it.
+ * Nothing is reviewed before it appears. What holds the line instead is the
+ * shape check, an hourly cap per client, and removal on request.
  */
 
 import {
@@ -19,14 +19,17 @@ import {
 import {
   ensureSchema,
   listOpenReports,
-  listPendingSubmissions,
+  listPublishedSubmissions,
+  listRecentSubmissions,
+  publishSubmission,
   saveReport,
-  saveSubmission,
+  withinRateLimit,
+  type SubmissionRow,
 } from "./db.ts";
 
 export interface Env {
   DB: D1Database;
-  /** Bearer token for the review queue. Set with `wrangler secret put QUEUE_TOKEN`. */
+  /** Bearer token for the maintainer view. Set with `wrangler secret put QUEUE_TOKEN`. */
   QUEUE_TOKEN?: string;
   /** Comma separated extra origins, for local development. */
   ALLOWED_ORIGINS?: string;
@@ -34,6 +37,8 @@ export interface Env {
 
 const DEFAULT_ORIGINS = ["https://afjk.github.io"];
 const MAX_BODY_BYTES = 8_192;
+const SUBMISSIONS_PER_HOUR = 20;
+const REPORTS_PER_HOUR = 10;
 
 const str = (value: unknown, max: number): string =>
   typeof value === "string" ? value.trim().slice(0, max) : "";
@@ -87,7 +92,12 @@ function json(
 ): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "content-type": "application/json; charset=utf-8", ...corsHeaders(request, env) },
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      // A listing has to be there the moment its submitter reloads the gallery.
+      "cache-control": "no-store",
+      ...corsHeaders(request, env),
+    },
   });
 }
 
@@ -97,6 +107,43 @@ async function readJson(request: Request): Promise<Record<string, unknown>> {
   const text = await request.text();
   if (text.length > MAX_BODY_BYTES) throw new Error("送信内容が大きすぎます。");
   return JSON.parse(text) as Record<string, unknown>;
+}
+
+/** Hourly cap key. The address is hashed, never stored or logged as-is. */
+async function clientKey(request: Request): Promise<string> {
+  const address = request.headers.get("cf-connecting-ip") ?? "unknown";
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(`splat-spots:${address}`),
+  );
+  return [...new Uint8Array(digest).slice(0, 8)]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/** A D1 row as the gallery consumes it: same shape as a `data/captures` record. */
+function asCapture(row: SubmissionRow): Record<string, unknown> {
+  let tags: string[] = [];
+  try {
+    const parsed: unknown = JSON.parse(row.tags);
+    if (Array.isArray(parsed)) tags = parsed.filter((tag): tag is string => typeof tag === "string");
+  } catch {
+    tags = [];
+  }
+  return {
+    id: row.capture_id,
+    url: row.url,
+    title: row.title,
+    description: row.note,
+    author: row.author,
+    tags,
+    source_post: row.source_post,
+    // Neither is ever guessed, and the form does not ask.
+    camera: null,
+    captured_at: null,
+    submitted_at: row.created_at,
+    status: "published",
+  };
 }
 
 async function handleSubmission(request: Request, env: Env): Promise<Response> {
@@ -112,7 +159,7 @@ async function handleSubmission(request: Request, env: Env): Promise<Response> {
 
   // Bots fill hidden fields. Accept without writing so they learn nothing.
   if (str(payload.website, 200)) {
-    return json({ ok: true, status: "queued" }, 201, request, env);
+    return json({ ok: true, status: "published" }, 201, request, env);
   }
 
   let id: string;
@@ -127,10 +174,10 @@ async function handleSubmission(request: Request, env: Env): Promise<Response> {
 
   try {
     await ensureSchema(env.DB);
-    // Re-submitting a capture that is still queued updates that row rather
-    // than adding another. Whether it is already published lives in git, which
-    // this Worker deliberately does not read.
-    await saveSubmission(env.DB, {
+    if (!(await withinRateLimit(env.DB, await clientKey(request), SUBMISSIONS_PER_HOUR))) {
+      return json({ error: "しばらく時間をおいてから送信してください。" }, 429, request, env);
+    }
+    await publishSubmission(env.DB, {
       id: crypto.randomUUID(),
       capture_id: id,
       url: canonicalCaptureUrl(id),
@@ -140,7 +187,7 @@ async function handleSubmission(request: Request, env: Env): Promise<Response> {
       author: str(payload.author, 80) || null,
       tags: JSON.stringify(tagList(payload.tags)),
       created_at: new Date().toISOString(),
-      status: "new",
+      status: "published",
     });
   } catch {
     return json(
@@ -149,7 +196,19 @@ async function handleSubmission(request: Request, env: Env): Promise<Response> {
     );
   }
 
-  return json({ ok: true, status: "queued", capture: { id } }, 201, request, env);
+  return json({ ok: true, status: "published", capture: { id } }, 201, request, env);
+}
+
+/** The live catalog. Public: the gallery reads this on every load. */
+async function handleCaptures(request: Request, env: Env): Promise<Response> {
+  try {
+    await ensureSchema(env.DB);
+    const rows = await listPublishedSubmissions(env.DB);
+    return json({ captures: rows.map(asCapture) }, 200, request, env);
+  } catch {
+    // The gallery still has everything in git; an empty live half is survivable.
+    return json({ captures: [] }, 200, request, env);
+  }
 }
 
 const REPORT_TYPES = new Set([
@@ -199,6 +258,9 @@ async function handleReport(request: Request, env: Env): Promise<Response> {
 
   try {
     await ensureSchema(env.DB);
+    if (!(await withinRateLimit(env.DB, await clientKey(request), REPORTS_PER_HOUR))) {
+      return json({ error: "しばらく時間をおいてから送信してください。" }, 429, request, env);
+    }
     await saveReport(env.DB, {
       id: crypto.randomUUID(),
       capture_id: captureId,
@@ -216,7 +278,10 @@ async function handleReport(request: Request, env: Env): Promise<Response> {
   return json({ ok: true }, 201, request, env);
 }
 
-/** Review queue. Read by a maintainer or the ingest workflow, never public. */
+/**
+ * What arrived lately, listings and reports together. Read by a maintainer
+ * looking over a site that publishes without asking them first.
+ */
 async function handleQueue(request: Request, env: Env): Promise<Response> {
   const expected = env.QUEUE_TOKEN;
   const presented = request.headers.get("authorization") ?? "";
@@ -226,7 +291,7 @@ async function handleQueue(request: Request, env: Env): Promise<Response> {
 
   await ensureSchema(env.DB);
   const [submissions, reports] = await Promise.all([
-    listPendingSubmissions(env.DB),
+    listRecentSubmissions(env.DB),
     listOpenReports(env.DB),
   ]);
 
@@ -252,6 +317,9 @@ export default {
 
     if (pathname === "/api/submissions" && request.method === "POST") {
       return handleSubmission(request, env);
+    }
+    if (pathname === "/api/captures" && request.method === "GET") {
+      return handleCaptures(request, env);
     }
     if (pathname === "/api/reports" && request.method === "POST") {
       return handleReport(request, env);

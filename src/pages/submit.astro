@@ -7,22 +7,19 @@ const endpoint = apiUrl("/api/submissions");
 ---
 
 <Base
-  title="Recommend a spot"
-  description="公開されている Insta360 Spatial Capture を Splat Spots に推薦する。"
+  title="Add a spot"
+  description="公開されている Insta360 Spatial Capture を Splat Spots に追加する。"
   path="/submit"
 >
   <section class="form-page shell">
     <a class="back-link" href={href("/")}>← Gallery</a>
-    <h1>Spatial Capture を推薦する</h1>
+    <h1>スポットを追加する</h1>
     <p class="lede">
-      見つけた Spatial Capture を教えてください。自分で撮ったものでなくても構いません。
-      いただいたURLは、掲載前に必ず人が開いて確認します。
+      URL を貼れば、そのままギャラリーに並びます。自分で撮ったものでなくても構いません。
     </p>
     <p class="notice">
-      <strong>すでに一般公開されている Capture だけを送ってください。</strong>
-      非公開・限定公開のリンクは送らないでください。<br />
-      Please submit only Spatial Captures that are already publicly accessible.
-      Do not submit private or access-restricted links.
+      <strong>すでに一般公開されている Capture だけを追加してください。</strong><br />
+      Please add only Spatial Captures that are already publicly accessible.
     </p>
 
     {API_CONFIGURED ? (
@@ -65,9 +62,9 @@ const endpoint = apiUrl("/api/submissions");
         </div>
 
         <div class="field field-wide">
-          <label for="note">メモ <span>任意・確認する人へ</span></label>
-          <textarea id="note" name="note" maxlength="600" rows="4"
-            placeholder="どんな場所か、どこで見つけたかなど。"></textarea>
+          <label for="note">説明 <span>任意</span></label>
+          <textarea id="note" name="note" maxlength="600" rows="3"
+            placeholder="どんな場所か。"></textarea>
         </div>
 
         <div class="field field-wide">
@@ -80,21 +77,12 @@ const endpoint = apiUrl("/api/submissions");
           <input id="website" name="website" tabindex="-1" autocomplete="off" />
         </div>
 
-        <div class="form-note">
-          <span aria-hidden="true">◎</span>
-          <p>
-            送信されるのはURLと上の情報だけです。
-            <strong>Splat Spots は Capture 本体（.sog / .ply）も画像も保存しません。</strong>
-            リンクを索引するだけで、内容は Insta360 が配信し続けます。
-          </p>
-        </div>
-
         <p class="form-message is-error" id="form-error" role="alert" hidden></p>
         <div class="form-message is-success" id="form-success" role="status" hidden></div>
 
         <div class="form-actions field-wide">
-          <button class="btn btn-primary" type="submit" id="submit-button">推薦を送る</button>
-          <span class="hint" id="submit-hint" hidden>確認しています…</span>
+          <button class="btn btn-primary" type="submit" id="submit-button">追加する</button>
+          <span class="hint" id="submit-hint" hidden>送信しています…</span>
         </div>
       </form>
     ) : (
@@ -102,9 +90,8 @@ const endpoint = apiUrl("/api/submissions");
         <p class="eyebrow">Not configured</p>
         <h2>受付APIがまだ設定されていません。</h2>
         <p>
-          このフォームは Cloudflare Worker に送信します。ビルド時に
-          <code>PUBLIC_API_BASE_URL</code> が設定されていないため、いまは受け付けられません。
-          リポジトリから直接登録することもできます。
+          ビルド時に <code>PUBLIC_API_BASE_URL</code> が設定されていないため、
+          いまは受け付けられません。リポジトリから直接追加することもできます。
         </p>
         <pre>node scripts/add-capture.mts '&lt;共有URL&gt;' --title '…' --tags 'tokyo'</pre>
       </div>
@@ -114,6 +101,7 @@ const endpoint = apiUrl("/api/submissions");
 
 <script>
   import { normalizeCaptureInput } from "../lib/capture-id";
+  import { href } from "../lib/url";
 
   const form = document.getElementById("submit-form") as HTMLFormElement | null;
   if (form) {
@@ -161,6 +149,21 @@ const endpoint = apiUrl("/api/submissions");
       }
     }
 
+    // The listing is live by the time this runs, so the message is a way in.
+    function published(id: string) {
+      successBox.replaceChildren();
+      const line = document.createElement("strong");
+      line.textContent = "追加しました。";
+      const spot = document.createElement("a");
+      spot.href = href(`/s/${id}`);
+      spot.textContent = "このスポットを開く";
+      const gallery = document.createElement("a");
+      gallery.href = href("/");
+      gallery.textContent = "ギャラリーへ";
+      successBox.append(line, " ", spot, " · ", gallery);
+      reveal(successBox);
+    }
+
     urlInput.addEventListener("input", () => {
       readId();
       errorBox.hidden = true;
@@ -205,10 +208,7 @@ const endpoint = apiUrl("/api/submissions");
           throw new Error(payload?.error ?? "送信できませんでした。時間をおいて試してください。");
         }
 
-        successBox.innerHTML =
-          "<strong>受け付けました。</strong>" +
-          "人が内容を確認してから掲載します。反映まで少し時間がかかります。";
-        reveal(successBox);
+        published(id);
         form.reset();
         readId();
       } catch (error) {

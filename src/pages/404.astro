@@ -1,0 +1,168 @@
+---
+import Base from "../layouts/Base.astro";
+import { catalogIds } from "../lib/catalog";
+import { href } from "../lib/url";
+
+/**
+ * Also the page for a spot that was added after the last build. Those listings
+ * live in the API, not in `data/captures/`, so no static page exists for them
+ * yet — this fills one in from the same record the gallery used. The URL stays
+ * `/s/<id>`, so nothing breaks when the listing is later committed to git.
+ */
+---
+
+<Base title="Not found" path="/404">
+  <!-- Ids git already covers. A committed capture has its own page, and an
+       `unlisted` one must not be rebuilt here from its live row. -->
+  <div id="spot-root" data-known={catalogIds.join(" ")}></div>
+
+  <section class="form-page shell" id="spot-loading">
+    <p class="lede">読み込んでいます…</p>
+  </section>
+
+  <section class="form-page shell" id="not-found" hidden>
+    <a class="back-link" href={href("/")}>← Gallery</a>
+    <h1>ページが見つかりません</h1>
+    <p class="lede">URL を確認してください。</p>
+  </section>
+
+  <noscript>
+    <style>
+      #spot-loading { display: none; }
+      #not-found { display: block; }
+    </style>
+  </noscript>
+
+  <template id="spot-template">
+    <section class="viewer-head shell">
+      <a class="back-link" data-slot="back">← Gallery</a>
+      <h1 data-slot="title"></h1>
+      <p class="lede" data-slot="description" hidden></p>
+      <div class="viewer-actions">
+        <a class="btn btn-primary" data-slot="launch" target="_blank" rel="noreferrer">
+          フルスクリーンで開く / Enter VR ↗
+        </a>
+        <a class="btn btn-ghost" data-slot="insta360" target="_blank" rel="noreferrer">
+          Insta360 で見る ↗
+        </a>
+      </div>
+    </section>
+
+    <section class="shell">
+      <div class="stage">
+        <div class="stage-bar">
+          <span class="dot" aria-hidden="true"></span>
+          <span>WEBXR VIEWER</span>
+          <code data-slot="id"></code>
+          <a data-slot="fullscreen" target="_blank" rel="noreferrer">Fullscreen ↗</a>
+        </div>
+        <iframe
+          data-slot="frame"
+          allow="fullscreen; xr-spatial-tracking; accelerometer; gyroscope"
+          allowfullscreen
+          loading="lazy"
+        ></iframe>
+        <p class="stage-note">
+          デスクトップ: ドラッグで視点移動 · Quest / PICO: 「フルスクリーンで開く」から VR に入れます
+        </p>
+      </div>
+    </section>
+
+    <section class="detail shell">
+      <div>
+        <p class="eyebrow">Catalog record</p>
+        <dl>
+          <div><dt>Capture ID</dt><dd><code data-slot="id-row"></code></dd></div>
+          <div><dt>撮影者</dt><dd data-slot="author"></dd></div>
+          <div data-slot="source-row" hidden>
+            <dt>出典</dt>
+            <dd><a data-slot="source" target="_blank" rel="nofollow noreferrer"></a></dd>
+          </div>
+          <div><dt>掲載日</dt><dd data-slot="date"></dd></div>
+        </dl>
+      </div>
+
+      <aside class="side-card">
+        <p class="eyebrow">Creator control</p>
+        <p>撮影者・権利者の方へ。ご連絡いただければ速やかに掲載を外します。</p>
+        <a class="block" data-slot="report">Report / Request removal →</a>
+      </aside>
+    </section>
+  </template>
+</Base>
+
+<script>
+  import { CAPTURE_ID_PATTERN } from "../lib/capture-id";
+  import { displayDate } from "../lib/capture";
+  import { fetchLiveCapture } from "../lib/api";
+  import { href } from "../lib/url";
+  import { viewerUrl } from "../lib/viewer";
+
+  const loading = document.getElementById("spot-loading");
+  const notFound = document.getElementById("not-found");
+  const root = document.getElementById("spot-root");
+  const template = document.getElementById("spot-template");
+
+  function giveUp() {
+    if (loading) loading.hidden = true;
+    if (notFound) notFound.hidden = false;
+  }
+
+  function requestedId(): string | null {
+    const segments = location.pathname.split("/").filter(Boolean);
+    const [prefix, id] = segments.slice(-2);
+    return prefix === "s" && id && CAPTURE_ID_PATTERN.test(id) ? id : null;
+  }
+
+  async function render() {
+    const id = requestedId();
+    if (!id || !root || !(template instanceof HTMLTemplateElement)) {
+      giveUp();
+      return;
+    }
+
+    const known = (root.dataset.known ?? "").split(" ").filter(Boolean);
+    const capture = known.includes(id) ? null : await fetchLiveCapture(id);
+    if (!capture) {
+      giveUp();
+      return;
+    }
+
+    const fragment = template.content.cloneNode(true) as DocumentFragment;
+    const slot = (name: string) => fragment.querySelector<HTMLElement>(`[data-slot="${name}"]`);
+    const launch = viewerUrl(capture.id);
+
+    document.title = `${capture.title} — Splat Spots`;
+
+    (slot("back") as HTMLAnchorElement).href = href("/");
+    slot("title")!.textContent = capture.title;
+    if (capture.description) {
+      const description = slot("description")!;
+      description.textContent = capture.description;
+      description.hidden = false;
+    }
+    (slot("launch") as HTMLAnchorElement).href = launch;
+    (slot("insta360") as HTMLAnchorElement).href = capture.url;
+    (slot("fullscreen") as HTMLAnchorElement).href = launch;
+    (slot("frame") as HTMLIFrameElement).src = launch;
+    (slot("frame") as HTMLIFrameElement).title = `${capture.title} の WebXR ビューア`;
+    slot("id")!.textContent = capture.id;
+    slot("id-row")!.textContent = capture.id;
+    slot("author")!.textContent = capture.author ?? "未確認";
+    if (capture.source_post) {
+      const anchor = slot("source") as HTMLAnchorElement;
+      anchor.href = capture.source_post;
+      anchor.textContent = capture.source_post;
+      slot("source-row")!.hidden = false;
+    }
+    slot("date")!.textContent = displayDate(capture.submitted_at) ?? capture.submitted_at;
+    (slot("report") as HTMLAnchorElement).href = href(
+      `/report?capture=${encodeURIComponent(capture.id)}`,
+    );
+
+    root.append(fragment);
+    if (loading) loading.hidden = true;
+  }
+
+  void render();
+</script>

@@ -1,8 +1,12 @@
 /**
- * D1 is an inbox, not the catalog. Nothing here is ever served to the public
- * site: rows wait until a person reviews them and commits a record to
- * `data/captures/`. Deleting a row does not unpublish anything, and writing
- * one does not publish anything.
+ * D1 holds the live half of the catalog.
+ *
+ * A submission is published the moment it arrives — there is no queue and no
+ * review step. `data/captures/` in git still holds the curated half; the
+ * gallery fetches this table and merges the two, with git winning on id.
+ *
+ * Removing a listing means flipping its status here:
+ *   UPDATE submissions SET status='removed' WHERE capture_id='GS3DG…'
  */
 
 export type SubmissionRow = {
@@ -10,12 +14,13 @@ export type SubmissionRow = {
   capture_id: string;
   url: string;
   title: string;
-  /** Free text from the submitter, for the reviewer. Not published as-is. */
+  /** Published as the listing's description. Column name predates that. */
   note: string;
   source_post: string | null;
   author: string | null;
   tags: string;
   created_at: string;
+  /** `published` is live; anything else is hidden. */
   status: string;
 };
 
@@ -41,12 +46,15 @@ const SCHEMA = [
     author TEXT,
     tags TEXT NOT NULL DEFAULT '[]',
     created_at TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'new'
+    status TEXT NOT NULL DEFAULT 'published'
   )`,
-  // One pending submission per capture: re-submitting a queued capture updates
-  // it rather than filling the queue with duplicates.
-  `CREATE UNIQUE INDEX IF NOT EXISTS submissions_pending_capture
-    ON submissions (capture_id) WHERE status = 'new'`,
+  // The old index only guarded rows waiting in the queue. Now that a row is a
+  // listing, one row per capture is the invariant at all times.
+  `DROP INDEX IF EXISTS submissions_pending_capture`,
+  `DELETE FROM submissions WHERE rowid NOT IN (
+    SELECT MAX(rowid) FROM submissions GROUP BY capture_id
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS submissions_capture ON submissions (capture_id)`,
   `CREATE INDEX IF NOT EXISTS submissions_status_created
     ON submissions (status, created_at DESC)`,
   `CREATE TABLE IF NOT EXISTS reports (
@@ -61,32 +69,75 @@ const SCHEMA = [
   )`,
   `CREATE INDEX IF NOT EXISTS reports_status_created
     ON reports (status, created_at DESC)`,
+  // Counts per hashed client per hour. No raw address is ever stored.
+  `CREATE TABLE IF NOT EXISTS rate_limit (
+    bucket TEXT PRIMARY KEY NOT NULL,
+    hits INTEGER NOT NULL DEFAULT 0,
+    expires_at INTEGER NOT NULL
+  )`,
 ];
 
-export async function ensureSchema(db: D1Database): Promise<void> {
-  await db.batch(SCHEMA.map((statement) => db.prepare(statement)));
+/**
+ * Once per isolate rather than once per request: the statements are idempotent
+ * but two of them write, and nothing here changes between requests.
+ */
+let ready: Promise<void> | null = null;
+
+export function ensureSchema(db: D1Database): Promise<void> {
+  ready ??= db
+    .batch(SCHEMA.map((statement) => db.prepare(statement)))
+    .then(async () => {
+      await db.prepare("DELETE FROM rate_limit WHERE expires_at < ?1").bind(Date.now()).run();
+    })
+    .catch((error: unknown) => {
+      ready = null;
+      throw error;
+    });
+  return ready;
 }
 
-export async function saveSubmission(db: D1Database, row: SubmissionRow): Promise<void> {
+/**
+ * Publishes a submission. Re-submitting a capture updates the listing instead
+ * of adding a second one, and keeps the date it first appeared.
+ */
+export async function publishSubmission(db: D1Database, row: SubmissionRow): Promise<void> {
   await db
     .prepare(
       `INSERT INTO submissions (
         id, capture_id, url, title, note, source_post, author, tags,
         created_at, status
       ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)
-      ON CONFLICT (capture_id) WHERE status = 'new' DO UPDATE SET
+      ON CONFLICT (capture_id) DO UPDATE SET
         title = excluded.title,
         note = excluded.note,
         source_post = excluded.source_post,
         author = excluded.author,
-        tags = excluded.tags,
-        created_at = excluded.created_at`,
+        tags = excluded.tags
+      WHERE submissions.status = 'published'`,
     )
     .bind(
       row.id, row.capture_id, row.url, row.title, row.note,
       row.source_post, row.author, row.tags, row.created_at, row.status,
     )
     .run();
+}
+
+/** The live catalog. Served to anyone; the gallery reads it on every load. */
+export async function listPublishedSubmissions(db: D1Database): Promise<SubmissionRow[]> {
+  const result = await db
+    .prepare(
+      "SELECT * FROM submissions WHERE status = 'published' ORDER BY created_at DESC LIMIT 500",
+    )
+    .all<SubmissionRow>();
+  return result.results;
+}
+
+/** Everything that arrived recently, for a maintainer looking over the site. */
+export async function listRecentSubmissions(db: D1Database): Promise<SubmissionRow[]> {
+  const result = await db
+    .prepare("SELECT * FROM submissions ORDER BY created_at DESC LIMIT 100")
+    .all<SubmissionRow>();
+  return result.results;
 }
 
 export async function saveReport(db: D1Database, row: ReportRow): Promise<void> {
@@ -104,16 +155,33 @@ export async function saveReport(db: D1Database, row: ReportRow): Promise<void> 
     .run();
 }
 
-export async function listPendingSubmissions(db: D1Database): Promise<SubmissionRow[]> {
-  const result = await db
-    .prepare("SELECT * FROM submissions WHERE status = 'new' ORDER BY created_at ASC LIMIT 100")
-    .all<SubmissionRow>();
-  return result.results;
-}
-
 export async function listOpenReports(db: D1Database): Promise<ReportRow[]> {
   const result = await db
     .prepare("SELECT * FROM reports WHERE status = 'open' ORDER BY created_at ASC LIMIT 100")
     .all<ReportRow>();
   return result.results;
+}
+
+const HOUR_MS = 3_600_000;
+
+/**
+ * Counts one hit against an hourly bucket and says whether it is still under
+ * the limit. Publishing without review means a flood lands straight on the
+ * site, and this is the only thing standing between the form and that.
+ */
+export async function withinRateLimit(
+  db: D1Database,
+  key: string,
+  limit: number,
+): Promise<boolean> {
+  const hour = Math.floor(Date.now() / HOUR_MS);
+  const row = await db
+    .prepare(
+      `INSERT INTO rate_limit (bucket, hits, expires_at) VALUES (?1, 1, ?2)
+       ON CONFLICT (bucket) DO UPDATE SET hits = hits + 1
+       RETURNING hits`,
+    )
+    .bind(`${key}:${hour}`, (hour + 2) * HOUR_MS)
+    .first<{ hits: number }>();
+  return (row?.hits ?? 1) <= limit;
 }

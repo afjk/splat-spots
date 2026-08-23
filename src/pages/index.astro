@@ -1,11 +1,17 @@
 ---
 import Base from "../layouts/Base.astro";
 import CaptureCard from "../components/CaptureCard.astro";
-import { captures, tagCounts } from "../lib/catalog";
+import CaptureCardTemplate from "../components/CaptureCardTemplate.astro";
+import { captures, catalogIds, tagCounts } from "../lib/catalog";
+import { API_CONFIGURED } from "../lib/api";
 import { href } from "../lib/url";
 
 const tags = tagCounts().slice(0, 12);
-const count = captures.length;
+// The grid always renders: listings posted since this build arrive from the
+// API and are appended client-side, so an empty catalog is not an empty page.
+// `catalogIds` rather than the rendered captures: an `unlisted` record must
+// stay off the page instead of returning through the API.
+const known = catalogIds;
 ---
 
 <Base title="Splat Spots" path="/">
@@ -14,74 +20,71 @@ const count = captures.length;
       <p class="hero-badge"><span class="dot"></span> Unofficial · WebXR ready</p>
       <h1>Spaces you can<br /><em>step into.</em></h1>
       <p class="hero-lede">
-        一般公開された Insta360 Spatial Capture を、有志が持ち寄って集めているディレクトリ。
-        ブラウザでそのまま見られて、Quest や PICO ならその場に立てます。
-        Insta360 とは関係のない非公式サイトです。
+        一般公開された Insta360 Spatial Capture を持ち寄るディレクトリ。
+        ブラウザで見られて、Quest や PICO ならその場に立てます。
       </p>
       <div class="hero-actions">
-        {count > 0 && <a class="btn btn-primary" href="#gallery">ギャラリーを見る</a>}
-        <a class="btn btn-ghost" href={href("/submit")}>Capture を推薦する</a>
-        <a class="text-link btn btn-ghost" href={href("/about")}>このサイトについて</a>
+        <a class="btn btn-primary" href="#gallery">ギャラリーを見る</a>
+        <a class="btn btn-ghost" href={href("/submit")}>スポットを追加する</a>
       </div>
     </div>
   </section>
 
-  <section class="gallery shell" id="gallery">
-    {count > 0 ? (
-      <>
-        <div class="toolbar">
-          <label class="search">
-            <span aria-hidden="true">⌕</span>
-            <span class="sr-only">キャプチャを検索</span>
-            <input type="search" id="q" placeholder="場所、撮影者、タグで絞り込む…" autocomplete="off" />
-          </label>
-          {tags.length > 0 && (
-            <div class="tag-filters" id="tag-filters">
-              {tags.map((entry) => (
-                <button class="tag-chip" type="button" data-tag={entry.tag} aria-pressed="false">
-                  #{entry.tag}
-                </button>
-              ))}
-            </div>
-          )}
-          <p class="result-count" id="count" data-total={count}>{count} SPACES</p>
-        </div>
-
-        <div class="capture-grid" id="grid">
-          {captures.map((capture) => <CaptureCard capture={capture} />)}
-        </div>
-
-        <div class="empty" id="no-results" hidden>
-          <p class="eyebrow">No matches</p>
-          <h3>条件に合う空間がありません。</h3>
-          <p>検索語やタグを変えてみてください。</p>
-        </div>
-      </>
-    ) : (
-      <div class="empty">
-        <p class="eyebrow">Catalog empty</p>
-        <h3>まだ登録されている空間がありません。</h3>
-        <p>
-          公開されている Spatial Capture を見つけたら、URLを教えてください。
-          内容を確認のうえ掲載します。最初の一件を待っています。
-        </p>
-        <a class="btn btn-ghost" href={href("/submit")}>最初の一件を推薦する</a>
+  <section class="gallery shell" id="gallery" data-known={known.join(" ")} data-live={API_CONFIGURED ? "on" : "off"}>
+    <div class="toolbar">
+      <label class="search">
+        <span aria-hidden="true">⌕</span>
+        <span class="sr-only">キャプチャを検索</span>
+        <input type="search" id="q" placeholder="場所、撮影者、タグで絞り込む…" autocomplete="off" />
+      </label>
+      <div class="tag-filters" id="tag-filters">
+        {tags.map((entry) => (
+          <button class="tag-chip" type="button" data-tag={entry.tag} aria-pressed="false">
+            #{entry.tag}
+          </button>
+        ))}
       </div>
-    )}
+      <p class="result-count" id="count">{captures.length} SPACES</p>
+    </div>
+
+    <div class="capture-grid" id="grid">
+      {captures.map((capture) => <CaptureCard capture={capture} />)}
+    </div>
+
+    <div class="empty" id="no-results" hidden>
+      <p class="eyebrow">No matches</p>
+      <h3>条件に合う空間がありません。</h3>
+      <p>検索語やタグを変えてみてください。</p>
+    </div>
+
+    <div class="empty" id="empty-catalog" hidden={captures.length > 0}>
+      <p class="eyebrow">Catalog empty</p>
+      <h3>まだ何もありません。</h3>
+      <p>公開されている Spatial Capture の URL を貼れば、そのまま並びます。</p>
+      <a class="btn btn-ghost" href={href("/submit")}>最初の一件を追加する</a>
+    </div>
   </section>
+
+  <CaptureCardTemplate />
 </Base>
 
 <script>
   // Filtering and the "/" shortcut are small enough to own directly. Shipping
   // a framework runtime for this would cost more than it saves.
+  import { fetchLiveCaptures } from "../lib/api";
+  import { createCaptureCard } from "../lib/live-card";
+
+  const gallery = document.getElementById("gallery");
   const grid = document.getElementById("grid");
-  if (grid) {
-    const cards = [...grid.querySelectorAll<HTMLElement>("[data-capture]")];
+  if (gallery && grid) {
     const input = document.getElementById("q") as HTMLInputElement | null;
     const countEl = document.getElementById("count");
     const noResults = document.getElementById("no-results");
-    const chips = [...document.querySelectorAll<HTMLButtonElement>(".tag-chip")];
+    const emptyCatalog = document.getElementById("empty-catalog");
+    const chipRow = document.getElementById("tag-filters");
     const active = new Set<string>();
+
+    let cards = [...grid.querySelectorAll<HTMLElement>("[data-capture]")];
 
     function apply() {
       const needle = (input?.value ?? "").trim().toLowerCase();
@@ -97,17 +100,16 @@ const count = captures.length;
         if (visible) shown += 1;
       }
 
+      const total = cards.length;
       if (countEl) {
-        const total = countEl.dataset.total ?? "0";
-        countEl.textContent = shown === Number(total) ? `${total} SPACES` : `${shown} / ${total} SPACES`;
+        countEl.textContent = shown === total ? `${total} SPACES` : `${shown} / ${total} SPACES`;
       }
-      if (noResults) noResults.hidden = shown > 0;
+      if (noResults) noResults.hidden = shown > 0 || total === 0;
+      if (emptyCatalog) emptyCatalog.hidden = total > 0;
       grid.hidden = shown === 0;
     }
 
-    input?.addEventListener("input", apply);
-
-    for (const chip of chips) {
+    function bindChip(chip: HTMLButtonElement) {
       chip.addEventListener("click", () => {
         const tag = chip.dataset.tag;
         if (!tag) return;
@@ -118,6 +120,8 @@ const count = captures.length;
       });
     }
 
+    for (const chip of document.querySelectorAll<HTMLButtonElement>(".tag-chip")) bindChip(chip);
+
     document.addEventListener("keydown", (event) => {
       if (event.key === "/" && document.activeElement !== input) {
         event.preventDefault();
@@ -127,5 +131,53 @@ const count = captures.length;
     });
 
     apply();
+
+    // Anything posted since the build. The committed half is already on
+    // screen, so this only ever adds.
+    async function loadLive() {
+      if (gallery.dataset.live !== "on") return;
+      const template = document.getElementById("capture-card-template");
+      if (!(template instanceof HTMLTemplateElement)) return;
+
+      const known = (gallery.dataset.known ?? "").split(" ").filter(Boolean);
+      const additions = await fetchLiveCaptures(known);
+      if (additions.length === 0) return;
+
+      for (const capture of additions) {
+        const card = createCaptureCard(capture, template);
+        if (!card) continue;
+        card.dataset.date = capture.submitted_at;
+        grid.append(card);
+      }
+
+      // Newest first across both halves, not committed-then-live.
+      const ordered = [...grid.querySelectorAll<HTMLElement>("[data-capture]")].sort(
+        (a, b) => Date.parse(b.dataset.date ?? "") - Date.parse(a.dataset.date ?? ""),
+      );
+      for (const card of ordered) grid.append(card);
+      cards = ordered;
+
+      if (chipRow) {
+        const existing = new Set(
+          [...chipRow.querySelectorAll<HTMLButtonElement>(".tag-chip")].map((chip) => chip.dataset.tag),
+        );
+        for (const tag of additions.flatMap((capture) => capture.tags)) {
+          if (existing.has(tag)) continue;
+          existing.add(tag);
+          const chip = document.createElement("button");
+          chip.className = "tag-chip";
+          chip.type = "button";
+          chip.dataset.tag = tag;
+          chip.setAttribute("aria-pressed", "false");
+          chip.textContent = `#${tag}`;
+          bindChip(chip);
+          chipRow.append(chip);
+        }
+      }
+
+      apply();
+    }
+
+    void loadLive();
   }
 </script>

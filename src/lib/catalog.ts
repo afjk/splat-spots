@@ -1,39 +1,27 @@
 /**
- * Build-time view of `data/captures/`. The published site is a pure function
- * of these files, so a capture disappears from the gallery by deleting one
- * file. Nothing here is fetched from anywhere: every field was typed by a
- * person during review.
+ * Build-time view of `data/captures/`. These are the records a maintainer
+ * committed by hand; the rest of the gallery arrives from the API at runtime.
+ * A capture in here disappears by deleting one file.
  */
+
+import type { CaptureRecord } from "./capture";
+
+export { displayDate } from "./capture";
+export type { CaptureRecord, CaptureStatus } from "./capture";
 
 const modules = import.meta.glob<CaptureRecord>("../../data/captures/*.json", {
   eager: true,
   import: "default",
 });
 
-export type CaptureStatus = "published" | "unlisted";
+const all: CaptureRecord[] = Object.values(modules);
 
-export type CaptureRecord = {
-  id: string;
-  url: string;
-  title: string;
-  description: string;
-  author: string | null;
-  tags: string[];
-  source_post: string | null;
-  camera: string | null;
-  captured_at: string | null;
-  submitted_at: string;
-  status: CaptureStatus;
-};
-
-export function displayDate(value: string | null): string | null {
-  if (!value) return null;
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.valueOf())
-    ? null
-    : new Intl.DateTimeFormat("ja-JP", { year: "numeric", month: "long", day: "numeric" })
-        .format(parsed);
-}
+/**
+ * Every id git knows about, `unlisted` included. The live half is filtered
+ * against this: a record pulled from the gallery must not come back through
+ * the API just because its file says `unlisted` rather than being deleted.
+ */
+export const catalogIds: string[] = all.map((capture) => capture.id);
 
 export const captures: CaptureRecord[] = Object.values(modules)
   .filter((capture) => capture.status === "published")
@@ -43,7 +31,7 @@ export function captureById(id: string): CaptureRecord | undefined {
   return captures.find((capture) => capture.id === id);
 }
 
-/** Tag counts, most used first — drives the filter row. */
+/** Tag counts, most used first — the chips the page ships with. */
 export function tagCounts(): { tag: string; count: number }[] {
   const counts = new Map<string, number>();
   for (const capture of captures) {

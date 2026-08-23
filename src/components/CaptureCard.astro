@@ -1,7 +1,7 @@
 ---
 import CaptureArt from "./CaptureArt.astro";
 import { href } from "../lib/url";
-import { displayDate, type CaptureRecord } from "../lib/catalog";
+import { displayDate, type CaptureRecord } from "../lib/capture";
 
 interface Props {
   capture: CaptureRecord;
@@ -23,7 +23,13 @@ const haystack = [
   .toLowerCase();
 ---
 
-<article class="capture-card" data-capture data-search={haystack} data-tags={capture.tags.join(" ")}>
+<article
+  class="capture-card"
+  data-capture
+  data-date={capture.submitted_at}
+  data-search={haystack}
+  data-tags={capture.tags.join(" ")}
+>
   <a class="capture-visual" href={detail}>
     <CaptureArt id={capture.id} label={capture.title} />
     <span class="visual-overlay">

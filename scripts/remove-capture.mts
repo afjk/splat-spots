@@ -7,8 +7,11 @@
  * subjects, so it must be a single step.
  *
  * Splat Spots holds nothing but the record: no capture files, no copies of
- * anyone's imagery. Deleting the JSON is therefore the whole removal — the
- * next build simply has one fewer page.
+ * anyone's imagery. Deleting the JSON is therefore the whole removal on the
+ * git side — but listings are now published straight into D1, so a listing
+ * that was never committed has no file to delete, and one that was can still
+ * be re-served from its D1 row. Both cases are settled by the same statement,
+ * which this prints every time rather than leaving to memory.
  */
 
 import { rm, stat } from "node:fs/promises";
@@ -35,25 +38,34 @@ const id = normalizeCaptureInput(input);
 
 const record = capturePath(id);
 
-if (!(await exists(record))) {
-  console.log(`${id} is not in the catalog. Nothing to remove.`);
-  process.exit(0);
+/** The live half. Deleting the file does not touch it. */
+function unlistCommand(captureId: string): string {
+  return [
+    "npx wrangler d1 execute splat-spots --remote -c worker/wrangler.toml \\",
+    `  --command "UPDATE submissions SET status='removed' WHERE capture_id='${captureId}'"`,
+  ].join("\n");
 }
 
-const capture = await readCapture(id);
-console.log(`removing  ${capture.title}`);
-console.log(`          ${id}`);
+if (await exists(record)) {
+  const capture = await readCapture(id);
+  console.log(`removing  ${capture.title}`);
+  console.log(`          ${id}`);
 
-const rel = path.relative(process.cwd(), record);
-if (dryRun) {
-  console.log(`  would   remove ${rel}`);
+  const rel = path.relative(process.cwd(), record);
+  if (dryRun) {
+    console.log(`  would   remove ${rel}`);
+  } else {
+    await rm(record, { force: true });
+    console.log(`  removed ${rel}`);
+  }
+  console.log(
+    dryRun
+      ? "\nDry run. Nothing was removed."
+      : "\nCommit and push to take it off the built site.",
+  );
 } else {
-  await rm(record, { force: true });
-  console.log(`  removed ${rel}`);
+  console.log(`${id} has no file in data/captures/.`);
+  console.log("If it is listed, it is a live row and only the statement below removes it.");
 }
 
-console.log(
-  dryRun
-    ? "\nDry run. Nothing was removed."
-    : "\nCommit and push to take it off the published site.",
-);
+console.log(`\nThen unlist the live row:\n\n${unlistCommand(id)}\n`);

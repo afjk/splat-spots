@@ -60,8 +60,7 @@ const canonical = absolute(path);
         </a>
         <nav class="site-nav">
           <a href={href("/")}>Gallery</a>
-          <a href={href("/submit")}>Recommend</a>
-          <a class="optional" href={href("/about")}>About</a>
+          <a href={href("/submit")}>Add a spot</a>
           <a class="optional" href="https://github.com/afjk/insta360-sog-xr-viewer" target="_blank" rel="noreferrer">Viewer ↗</a>
           <a href="https://github.com/afjk/splat-spots" target="_blank" rel="noreferrer">GitHub ↗</a>
         </nav>
@@ -75,15 +74,13 @@ const canonical = absolute(path);
     <footer class="site-footer">
       <div class="shell">
         <p class="disclaimer">
-          Splat Spots は、一般公開された Spatial Capture のリンクを有志が持ち寄っている
-          <strong>非公式のディレクトリ</strong>です。Insta360 および Arashi Vision とは
-          関係がなく、承認も受けていません。Capture 本体はそれぞれの提供元が配信しており、
-          Splat Spots は人が投稿したリンクを索引しているだけです。
-          掲載されている Capture の撮影者で削除をご希望の方は、
-          <a href={href("/report")}>Report / Request removal</a> からご連絡ください。
+          一般公開された Spatial Capture のリンクを持ち寄る<strong>非公式のディレクトリ</strong>です。
+          Insta360 および Arashi Vision とは関係がなく、承認も受けていません。Capture 本体は
+          それぞれの提供元が配信しています。<br />
+          Unofficial and not affiliated with Insta360. If you are the creator of a listed
+          capture, <a href={href("/report")}>request removal</a> and it comes down.
         </p>
         <nav>
-          <a href={href("/about")}>About</a>
           <a href="https://github.com/afjk/splat-spots" target="_blank" rel="noreferrer">Source</a>
           <a href={href("/report")}>削除・修正依頼</a>
         </nav>

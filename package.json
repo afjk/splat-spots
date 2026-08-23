@@ -12,7 +12,7 @@
     "preview": "astro preview",
     "add": "node scripts/add-capture.mts",
     "remove": "node scripts/remove-capture.mts",
-    "test": "npm run typecheck && node --test tests/catalog.test.mts"
+    "test": "npm run typecheck && node --test 'tests/*.test.mts'"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260702.1",
