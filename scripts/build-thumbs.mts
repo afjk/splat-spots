@@ -231,6 +231,12 @@ async function main(): Promise<void> {
       failures.push(`${id}: ${lookup.reason}`);
       continue;
     }
+    if (lookup.state === "not_found") {
+      // The record outlived the capture. `npm run verify` is what decides to
+      // unpublish it; rendering just reports and moves on.
+      failures.push(`${id}: Insta360 no longer has this capture`);
+      continue;
+    }
     const previewUrl = lookup.metadata.preview_video_url;
     if (!previewUrl) {
       failures.push(`${id}: Insta360 reported no preview video`);

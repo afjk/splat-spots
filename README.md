@@ -37,9 +37,13 @@ Node.js 22.13 以上と ffmpeg が必要です。
 ```bash
 npm install
 npm run dev          # 開発サーバー
-npm test             # ユニットテスト
+npm test             # 型チェック + ユニットテスト
+npm run typecheck    # 型だけ
 npm run build        # dist/ へ静的生成
 ```
+
+`worker/` は Cloudflare の型が必要なので、独立した tsconfig で別に検査します。
+`npm run typecheck` は両方を見ます。
 
 ### キャプチャを登録する
 
@@ -167,5 +171,4 @@ curl -H "Authorization: Bearer $QUEUE_TOKEN" https://<api>/api/queue
 フロントエンドは GitHub Pages、カタログは git、受付は Cloudflare Workers + D1。
 次はキューの取り込み自動化と、日次の公開状態確認です（`docs/direction.md` の Phase 3）。
 
-リポジトリには旧 Next.js + Cloudflare 実装が `app/` `lib/` `worker/` などに残っており、
-`legacy:` 付きの npm script から動かせます。Phase 2 で Worker を切り出した時点で撤去します。
+旧 Next.js + Cloudflare 実装は撤去済みです。
