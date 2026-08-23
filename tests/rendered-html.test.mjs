@@ -26,10 +26,11 @@ test("home contains the finished directory product", async () => {
 });
 
 test("submit, viewer and reporting routes expose the product actions", async () => {
-  const [submit, form, viewer, report, reportForm] = await Promise.all([
+  const [submit, form, viewer, adapter, report, reportForm] = await Promise.all([
     source("app/submit/page.tsx"),
     source("app/submit/submit-form.tsx"),
     source("app/s/[id]/page.tsx"),
+    source("lib/viewer/adapter.ts"),
     source("app/report/page.tsx"),
     source("app/report/report-form.tsx"),
   ]);
@@ -40,6 +41,9 @@ test("submit, viewer and reporting routes expose the product actions", async () 
   assert.match(viewer, /Open XR Viewer/);
   assert.match(viewer, /View on Insta360/);
   assert.match(viewer, /Report \/ Remove/);
+  assert.match(adapter, /https:\/\/afjk\.github\.io\/insta360-sog-xr-viewer\//);
+  assert.match(adapter, /searchParams\.set\("id", id\.trim\(\)\)/);
+  assert.doesNotMatch(adapter, /insta360-sog-xr-viewer\.afjk01\.chatgpt\.site/);
   assert.match(report, /Keep the atlas/);
   assert.match(reportForm, /\/api\/reports/);
   assert.doesNotMatch(report, /PLACEHOLDER/);

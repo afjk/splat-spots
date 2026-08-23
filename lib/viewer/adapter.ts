@@ -1,7 +1,7 @@
 import { isCaptureId } from "@/lib/captures/normalize";
 
 export const DEFAULT_VIEWER_BASE_URL =
-  "https://insta360-sog-xr-viewer.afjk01.chatgpt.site/";
+  "https://afjk.github.io/insta360-sog-xr-viewer/";
 
 /**
  * The existing viewer reads `?id=GS3DG…`. Calling this without an ID returns

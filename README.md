@@ -16,12 +16,13 @@ mirrored by this app.
 
 ## Viewer integration
 
-The default viewer is the deployed
-[`afjk/insta360-sog-xr-viewer`](https://github.com/afjk/insta360-sog-xr-viewer).
+The default viewer is the
+[`afjk/insta360-sog-xr-viewer`](https://github.com/afjk/insta360-sog-xr-viewer)
+deployment on [GitHub Pages](https://afjk.github.io/insta360-sog-xr-viewer/).
 It accepts a stable public share ID in the `id` query parameter:
 
 ```text
-https://viewer.example/?id=GS3DG…
+https://afjk.github.io/insta360-sog-xr-viewer/?id=GS3DG…
 ```
 
 Set `NEXT_PUBLIC_VIEWER_BASE_URL` to point the directory at another deployment.
