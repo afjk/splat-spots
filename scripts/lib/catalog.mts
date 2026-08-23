@@ -81,6 +81,15 @@ export async function listCaptureIds(): Promise<string[]> {
     .sort();
 }
 
+/**
+ * Ids the site actually publishes. Derived thumbnails must follow exactly this
+ * set: a capture whose owner unshared it is unlisted, so keeping its images
+ * served would leak the very thing the removal was for.
+ */
+export function publishedIds(records: CaptureRecord[]): string[] {
+  return records.filter((record) => record.status === "available").map((record) => record.id);
+}
+
 /** Newest first, matching how the gallery renders. */
 export async function readCatalog(): Promise<CaptureRecord[]> {
   const records = await Promise.all((await listCaptureIds()).map(readCapture));

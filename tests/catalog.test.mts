@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   normalizeCaptureInput,
+  publishedIds,
   serializeCapture,
   type CaptureRecord,
 } from "../scripts/lib/catalog.mts";
@@ -150,4 +151,22 @@ test("tells a missing capture apart from an unreachable service", () => {
   assert.equal(isNotFoundBody("<html>502</html>"), false);
   assert.equal(isNotFoundBody({}), false);
   assert.equal(isNotFoundBody({ code: "40004" }), false);
+});
+
+test("publishes exactly the available captures", () => {
+  const base = {
+    insta360_url: "", title: "", description: "", captured_at: null, camera: null,
+    source_post_url: null, source_author: null, discovered_at: "", last_checked_at: null,
+    tags: [],
+  };
+  const records = [
+    { ...base, id: "a", status: "available" },
+    { ...base, id: "b", status: "unavailable" },
+    { ...base, id: "c", status: "available" },
+  ] as CaptureRecord[];
+
+  // Thumbnails follow this set. An unshared capture must drop out of it, or
+  // its images stay served after the gallery stops listing it.
+  assert.deepEqual(publishedIds(records), ["a", "c"]);
+  assert.deepEqual(publishedIds([]), []);
 });

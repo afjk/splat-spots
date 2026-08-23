@@ -34,7 +34,7 @@ import { access, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { listCaptureIds, readCapture } from "./lib/catalog.mts";
+import { publishedIds, readCatalog } from "./lib/catalog.mts";
 import { lookupCapture } from "./lib/insta360.mts";
 
 const run = promisify(execFile);
@@ -60,13 +60,13 @@ async function exists(file: string): Promise<boolean> {
 }
 
 /**
- * Delete thumbnails whose capture is no longer in the catalog. Runs before
- * anything else so a removed capture cannot be re-published by a restored
- * build cache.
+ * Delete thumbnails for anything the site does not publish — removed records
+ * and captures that verification has marked unavailable alike. Runs before
+ * anything else so neither can be resurrected by a restored build cache.
  */
-async function pruneOrphans(catalogIds: string[]): Promise<number> {
+async function pruneOrphans(published: string[]): Promise<number> {
   const { readdir } = await import("node:fs/promises");
-  const keep = new Set(catalogIds);
+  const keep = new Set(published);
   let removed = 0;
 
   let entries: string[];
@@ -187,18 +187,16 @@ async function main(): Promise<void> {
   const onlyIndex = process.argv.indexOf("--only");
   const only = onlyIndex >= 0 ? process.argv[onlyIndex + 1] : null;
 
-  const catalogIds = await listCaptureIds();
+  const published = publishedIds(await readCatalog());
   await mkdir(THUMBS_DIR, { recursive: true });
-  const pruned = await pruneOrphans(catalogIds);
+  const pruned = await pruneOrphans(published);
 
-  const ids = catalogIds.filter((id) => !only || id === only);
+  const ids = published.filter((id) => !only || id === only);
   if (!ids.length) {
     console.log(
-      catalogIds.length
-        ? "nothing matched --only"
-        : "no captures in data/captures — nothing to render",
+      published.length ? "nothing matched --only" : "nothing published — nothing to render",
     );
-    if (pruned) console.log(`pruned ${pruned} orphaned thumbnail set(s)`);
+    if (pruned) console.log(`pruned ${pruned} thumbnail set(s)`);
     return;
   }
 
@@ -215,13 +213,6 @@ async function main(): Promise<void> {
     const loop = path.join(dir, "loop.mp4");
 
     if (!force && (await exists(poster)) && (await exists(og)) && (await exists(loop))) {
-      skipped += 1;
-      continue;
-    }
-
-    const capture = await readCapture(id);
-    if (capture.status !== "available") {
-      console.log(`skip     ${id} (status: ${capture.status})`);
       skipped += 1;
       continue;
     }
