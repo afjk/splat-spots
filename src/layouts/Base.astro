@@ -10,11 +10,13 @@ interface Props {
 }
 
 const TAGLINE = "Unofficial gallery of Insta360 Spatial Captures";
+// `image` and `path` are app-absolute ("/og.png"); absolute() applies the
+// deployment base exactly once. Do not pre-apply href() here.
 const {
   title,
   description = TAGLINE,
   path,
-  image = href("/og.png"),
+  image = "/og.png",
 } = Astro.props;
 
 const fullTitle = title === "Splat Spots" ? `Splat Spots — ${TAGLINE}` : `${title} — Splat Spots`;
