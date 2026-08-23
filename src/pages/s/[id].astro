@@ -15,7 +15,6 @@ const { capture } = Astro.props;
 const launch = viewerUrl(capture.id);
 const date = displayDate(capture.captured_at);
 const camera = displayCamera(capture.camera);
-const checked = displayDate(capture.last_checked_at);
 const reportUrl = href(`/report?capture=${encodeURIComponent(capture.id)}`);
 ---
 
@@ -78,7 +77,10 @@ const reportUrl = href(`/report?capture=${encodeURIComponent(capture.id)}`);
             ) : ("記載なし")}
           </dd>
         </div>
-        <div><dt>公開確認日</dt><dd>{checked ?? "未確認"}</dd></div>
+        <div>
+          <dt>公開状態</dt>
+          <dd>毎日 Insta360 に照会しています。共有が解除されると掲載も外れます。</dd>
+        </div>
       </dl>
     </div>
 

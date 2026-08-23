@@ -48,15 +48,24 @@ for (const id of ids) {
     console.log(`ok       ${id}  ${status}`);
   }
 
-  if (!dryRun) {
+  // Refresh facts Insta360 owns; leave reviewed prose alone.
+  const captured_at =
+    lookup.state === "ok" ? lookup.metadata.captured_at ?? capture.captured_at : capture.captured_at;
+  const camera =
+    lookup.state === "ok" ? lookup.metadata.camera ?? capture.camera : capture.camera;
+
+  // Write only on a real change. Stamping last_checked_at every run would put
+  // a commit in the history for every quiet day and bury the ones that matter.
+  const substantive =
+    flipped || captured_at !== capture.captured_at || camera !== capture.camera;
+
+  if (!dryRun && substantive) {
     await writeCapture({
       ...capture,
       status,
+      captured_at,
+      camera,
       last_checked_at: new Date().toISOString(),
-      // Refresh facts Insta360 owns; leave reviewed prose alone.
-      captured_at:
-        lookup.state === "ok" ? lookup.metadata.captured_at ?? capture.captured_at : capture.captured_at,
-      camera: lookup.state === "ok" ? lookup.metadata.camera ?? capture.camera : capture.camera,
     });
   }
 }

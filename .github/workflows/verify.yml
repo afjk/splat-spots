@@ -1,0 +1,66 @@
+name: Verify catalog
+
+# Every listing claims it is still public. This is what makes that true: once
+# a day, ask Insta360 about each one and unlist whatever is gone. Unlisting is
+# the safe direction, so it commits straight to main rather than waiting for a
+# review — a capture whose owner unshared it should not stay up for days.
+on:
+  schedule:
+    # 03:19 UTC / 12:19 JST. Off the hour: scheduled runs bunch up on the hour
+    # and get delayed.
+    - cron: "19 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: verify
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  # Needed to start the Pages deploy below.
+  actions: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Writes only on a real change: a status flip, or metadata Insta360 owns.
+      # A capture it cannot reach is left alone, so an outage never unlists
+      # anyone.
+      - name: Re-check every listing
+        run: npm run verify
+
+      - name: Commit any change
+        id: commit
+        run: |
+          if [ -z "$(git status --porcelain data/captures)" ]; then
+            echo "nothing changed"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/captures
+          git commit -m "Unlist captures that are no longer public
+
+          Written by the daily verification run."
+          git push
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      # A push authenticated with GITHUB_TOKEN does not trigger other
+      # workflows, so the deploy has to be asked for explicitly. Without this
+      # the catalog would change and the published site would not.
+      - name: Deploy the updated site
+        if: steps.commit.outputs.changed == 'true'
+        run: gh workflow run "Deploy to GitHub Pages"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
