@@ -16,7 +16,7 @@ export const seedCaptures: Capture[] = [
     source_author: null,
     discovered_at: "2026-08-23T00:00:00.000Z",
     last_checked_at: null,
-    status: "available",
+    status: "pending",
     tags: ["community", "spatial capture"],
   },
 ];
