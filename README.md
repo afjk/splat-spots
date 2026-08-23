@@ -64,6 +64,26 @@ node scripts/add-capture.mts '<URL>' --tags 'tokyo,night'
 `add` は Insta360 に公開状態を照会し、**非公開なら登録を拒否します**。
 タイトルなどを省略すると Insta360 が持つ情報で埋まります。
 
+### 削除依頼に対応する
+
+```bash
+npm run remove -- 'GS3DG…'        # --dry-run で確認だけ
+git commit -am '…' && git push    # 公開サイトから消える
+```
+
+レコードと派生サムネイルを**必ず一緒に**消します。JSONだけ消すと一覧からは
+外れますが、その場所の画像が推測可能なURLに残り続けるためです。
+
+git 履歴にはサムネイルが残ります。依頼者がそこまで求める場合は、履歴の書き換えが
+別途必要です（意図的に行う操作なので自動化していません）。
+
+対応後、受付側の状態も更新します。
+
+```bash
+npx wrangler d1 execute splat-spots --remote -c worker/wrangler.toml \
+  --command "UPDATE reports SET status='resolved' WHERE id='…'"
+```
+
 ### 掲載状態を確認する
 
 ```bash
