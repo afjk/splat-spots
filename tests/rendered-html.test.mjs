@@ -25,11 +25,13 @@ test("home contains the finished directory product", async () => {
   assert.doesNotMatch(`${page}\n${layout}\n${packageJson}`, /codex-preview|react-loading-skeleton|Your site is taking shape/i);
 });
 
-test("submit and viewer routes expose the MVP actions", async () => {
-  const [submit, form, viewer] = await Promise.all([
+test("submit, viewer and reporting routes expose the product actions", async () => {
+  const [submit, form, viewer, report, reportForm] = await Promise.all([
     source("app/submit/page.tsx"),
     source("app/submit/submit-form.tsx"),
     source("app/s/[id]/page.tsx"),
+    source("app/report/page.tsx"),
+    source("app/report/report-form.tsx"),
   ]);
 
   assert.match(submit, /Add a place to/);
@@ -38,4 +40,7 @@ test("submit and viewer routes expose the MVP actions", async () => {
   assert.match(viewer, /Open XR Viewer/);
   assert.match(viewer, /View on Insta360/);
   assert.match(viewer, /Report \/ Remove/);
+  assert.match(report, /Keep the atlas/);
+  assert.match(reportForm, /\/api\/reports/);
+  assert.doesNotMatch(report, /PLACEHOLDER/);
 });

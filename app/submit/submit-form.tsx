@@ -118,7 +118,11 @@ export function SubmitForm() {
       {state.kind === "error" ? <p className="form-message is-error" role="alert">{state.message}</p> : null}
       {state.kind === "saved" ? (
         <div className="form-message is-success" role="status">
-          <span>登録しました。</span>
+          <span>
+            {state.capture.status === "available"
+              ? "公開状態を確認して登録しました。"
+              : "登録しました。公開状態は確認待ちです。"}
+          </span>
           <Link href={`/s/${state.capture.id}`}>Viewerを開く ↗</Link>
         </div>
       ) : null}

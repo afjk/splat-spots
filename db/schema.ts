@@ -17,3 +17,18 @@ export const captures = sqliteTable(
   },
   (table) => [index("captures_discovered_at_idx").on(table.discoveredAt)],
 );
+
+export const captureReports = sqliteTable(
+  "capture_reports",
+  {
+    id: text("id").primaryKey(),
+    captureId: text("capture_id").notNull(),
+    requestType: text("request_type").notNull(),
+    requesterEmail: text("requester_email").notNull(),
+    relationship: text("relationship").notNull().default(""),
+    message: text("message").notNull().default(""),
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    status: text("status").notNull().default("open"),
+  },
+  (table) => [index("capture_reports_status_created_idx").on(table.status, table.createdAt)],
+);

@@ -9,9 +9,9 @@ mirrored by this app.
 ## MVP routes
 
 - `/` — searchable gallery of public captures
-- `/submit` — normalizes an Insta360 share URL and stores a pending catalog row
+- `/submit` — normalizes a share URL, checks public SOG availability, and stores the catalog row
 - `/s/:id` — embeds and launches the existing XR viewer with `?id=GS3DG…`
-- `/report` — placeholder for owner correction/removal requests
+- `/report` — stores owner correction/removal requests in a private review queue
 - `/api/captures` — catalog `GET` and normalized submission `POST`
 
 ## Viewer integration
@@ -36,6 +36,8 @@ default sample behavior remains intact.
 - `lib/captures/repository.ts` is the persistence boundary.
 - `lib/discovery/` defines candidate and importer boundaries for future search
   engine or X discovery. Discovery providers cannot write directly to storage.
+- `lib/verification/` checks current public availability without retaining the
+  signed SOG URL returned by Insta360.
 - `.openai/hosting.json` declares the logical `DB` binding.
 
 All catalog records use these fields:
@@ -65,6 +67,5 @@ npm run db:generate
 
 - broad crawling or ID enumeration
 - permanent SOG/PLY mirroring
-- automated availability checks
 - moderation and owner-verification workflow
 - rate limiting and abuse prevention

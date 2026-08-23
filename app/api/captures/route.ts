@@ -2,6 +2,7 @@ import { mergedCatalog } from "@/lib/captures/catalog";
 import { normalizeCaptureInput } from "@/lib/captures/normalize";
 import { listStoredCaptures, saveCapture } from "@/lib/captures/repository";
 import type { Capture } from "@/lib/captures/types";
+import { verifyPublicCapture } from "@/lib/verification/insta360";
 
 const text = (value: unknown, max: number): string =>
   typeof value === "string" ? value.trim().slice(0, max) : "";
@@ -48,23 +49,32 @@ export async function POST(request: Request) {
     );
   }
 
-  const now = new Date().toISOString();
+  const now = new Date();
+  const verification = await verifyPublicCapture(normalized, now);
+  if (verification.state === "unavailable") {
+    return Response.json({ error: verification.reason }, { status: 422 });
+  }
+
+  const submittedTitle = text(payload.title, 120);
   const capture: Capture = {
     id: normalized.id,
     insta360_url: normalized.insta360_url,
-    title: text(payload.title, 120) || "Untitled capture",
+    title:
+      submittedTitle ||
+      (verification.state === "available" ? text(verification.title, 120) : "") ||
+      "Untitled capture",
     description: text(payload.description, 600),
     source_post_url: optionalUrl(payload.source_post_url),
     source_author: text(payload.source_author, 80) || null,
-    discovered_at: now,
-    last_checked_at: null,
-    status: "pending",
+    discovered_at: now.toISOString(),
+    last_checked_at: verification.state === "available" ? verification.checked_at : null,
+    status: verification.state === "available" ? "available" : "pending",
     tags: tags(payload.tags),
   };
 
   try {
     await saveCapture(capture);
-    return Response.json({ capture }, { status: 201 });
+    return Response.json({ capture, verification: verification.state }, { status: 201 });
   } catch {
     return Response.json(
       { error: "現在カタログへ保存できません。少し待ってから再度お試しください。" },
