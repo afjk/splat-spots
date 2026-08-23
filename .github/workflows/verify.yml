@@ -50,9 +50,12 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/captures
-          git commit -m "Unlist captures that are no longer public
+          # Neutral wording: the check unlists a capture that went away and
+          # relists one that came back, and the message must fit both.
+          git commit -m "Update listing availability
 
-          Written by the daily verification run."
+          Written by the daily verification run. See the diff for which
+          captures changed and in which direction."
           git push
           echo "changed=true" >> "$GITHUB_OUTPUT"
 
