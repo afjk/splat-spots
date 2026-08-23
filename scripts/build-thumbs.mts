@@ -20,8 +20,13 @@
  * Sources are portrait (1080x1920); the 4:5 and 1.91:1 crops are baked in here
  * rather than left to CSS to keep the files small.
  *
- * Existing thumbnails are left alone unless --force is passed. Regenerating
- * unchanged files on every build would bloat the repository for no reason.
+ * Nothing here is committed. `public/thumbs/` is reconciled to
+ * `data/captures/` on every run: thumbnails are rendered for records that
+ * lack them and deleted for records that no longer exist. That reconciliation
+ * is what makes a removal complete — no stale artifact can survive in a build
+ * cache, a working copy, or git history.
+ *
+ * Existing thumbnails are otherwise left alone unless --force is passed.
  */
 
 import { execFile } from "node:child_process";
@@ -52,6 +57,32 @@ async function exists(file: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/**
+ * Delete thumbnails whose capture is no longer in the catalog. Runs before
+ * anything else so a removed capture cannot be re-published by a restored
+ * build cache.
+ */
+async function pruneOrphans(catalogIds: string[]): Promise<number> {
+  const { readdir } = await import("node:fs/promises");
+  const keep = new Set(catalogIds);
+  let removed = 0;
+
+  let entries: string[];
+  try {
+    entries = await readdir(THUMBS_DIR);
+  } catch {
+    return 0;
+  }
+
+  for (const entry of entries) {
+    if (entry.startsWith(".") || keep.has(entry)) continue;
+    await rm(path.join(THUMBS_DIR, entry), { recursive: true, force: true });
+    console.log(`prune    ${entry}`);
+    removed += 1;
+  }
+  return removed;
 }
 
 async function ensureFfmpeg(): Promise<void> {
@@ -156,14 +187,22 @@ async function main(): Promise<void> {
   const onlyIndex = process.argv.indexOf("--only");
   const only = onlyIndex >= 0 ? process.argv[onlyIndex + 1] : null;
 
-  const ids = (await listCaptureIds()).filter((id) => !only || id === only);
+  const catalogIds = await listCaptureIds();
+  await mkdir(THUMBS_DIR, { recursive: true });
+  const pruned = await pruneOrphans(catalogIds);
+
+  const ids = catalogIds.filter((id) => !only || id === only);
   if (!ids.length) {
-    console.log("no captures in data/captures — nothing to render");
+    console.log(
+      catalogIds.length
+        ? "nothing matched --only"
+        : "no captures in data/captures — nothing to render",
+    );
+    if (pruned) console.log(`pruned ${pruned} orphaned thumbnail set(s)`);
     return;
   }
 
   await ensureFfmpeg();
-  await mkdir(THUMBS_DIR, { recursive: true });
 
   const failures: string[] = [];
   let rendered = 0;
@@ -226,7 +265,9 @@ async function main(): Promise<void> {
     }
   }
 
-  console.log(`\nrendered ${rendered} · skipped ${skipped} · failed ${failures.length}`);
+  console.log(
+    `\nrendered ${rendered} · skipped ${skipped} · pruned ${pruned} · failed ${failures.length}`,
+  );
   if (failures.length) {
     console.log("\nfailures");
     for (const failure of failures) console.log(`  - ${failure}`);

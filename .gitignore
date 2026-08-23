@@ -46,3 +46,8 @@ next-env.d.ts
 
 # cloudflare local secrets
 .dev.vars
+
+# Derived thumbnails are build artifacts, never committed. Keeping them out of
+# git is what makes a removal request actually complete: delete the record and
+# the images cease to exist rather than surviving in history.
+/public/thumbs/

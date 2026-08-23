@@ -5,9 +5,12 @@
  *
  * Honouring a removal request is the one operation this site promises its
  * subjects, so it must not be a checklist someone can half-perform. The
- * record and every derived thumbnail go together: deleting the JSON alone
- * would unlist the capture while leaving images of the place served at a
- * guessable URL.
+ * record and every derived thumbnail go together.
+ *
+ * Thumbnails are build artifacts and are never committed, so removing the
+ * record is what actually ends their existence: the next build derives from
+ * the catalog and prunes whatever no longer belongs. This deletes the local
+ * copies too, so nothing lingers in a working tree either.
  */
 
 import { rm, stat } from "node:fs/promises";
@@ -72,6 +75,5 @@ console.log(
   dryRun
     ? "\nDry run. Nothing was removed."
     : "\nCommit and push to take it off the published site." +
-      "\nNote: thumbnails stay in git history; rewriting history is a separate,\n" +
-      "deliberate step if the requester needs that too.",
+      "\nThumbnails are not committed, so nothing survives in git history.",
 );
