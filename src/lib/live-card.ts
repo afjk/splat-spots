@@ -62,6 +62,26 @@ export function captureArt(id: string, label: string): SVGElement {
   return root;
 }
 
+/**
+ * Puts a submitted picture in front of the generated artwork. The artwork
+ * stays underneath: if the image 404s or the API is down, the card is the one
+ * it always was rather than a hole.
+ */
+export function applyThumbnail(card: HTMLElement, url: string): void {
+  const visual = card.querySelector(".capture-visual");
+  const overlay = visual?.querySelector(".visual-overlay");
+  if (!visual || !overlay || visual.querySelector(".capture-photo")) return;
+
+  const photo = document.createElement("img");
+  photo.className = "capture-photo";
+  photo.loading = "lazy";
+  photo.decoding = "async";
+  photo.alt = "";
+  photo.addEventListener("error", () => photo.remove());
+  photo.src = url;
+  visual.insertBefore(photo, overlay);
+}
+
 function slot(root: ParentNode, name: string): HTMLElement | null {
   return root.querySelector<HTMLElement>(`[data-slot="${name}"]`);
 }
@@ -76,6 +96,7 @@ export function createCaptureCard(
 
   const detail = href(`/s/${capture.id}`);
   const date = displayDate(capture.captured_at);
+  card.dataset.id = capture.id;
 
   const visual = slot(card, "visual") as HTMLAnchorElement | null;
   if (visual) {

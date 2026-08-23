@@ -267,6 +267,18 @@ button, input { font: inherit; color: inherit; }
 .capture-card:hover .capture-visual { border-color: var(--line-strong); transform: translateY(-3px); }
 
 .capture-art { position: absolute; inset: 0; width: 100%; height: 100%; }
+/*
+ * A submitted picture sits in front of the artwork, never instead of it:
+ * the artwork is what shows if the image fails to load. The upload was
+ * already fitted to this frame, so `cover` has nothing left to crop.
+ */
+.capture-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 
 .visual-overlay {
   position: absolute;
@@ -588,6 +600,57 @@ button, input { font: inherit; color: inherit; }
 .form-note p { margin: 0; }
 
 .form-actions { display: flex; align-items: center; gap: 14px; margin-top: 26px; }
+
+/*
+ * Thumbnail picker. One target for three gestures — click, drag, paste — so
+ * the quickest of them is never hidden behind the others.
+ */
+.dropzone {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 22px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+.dropzone:hover,
+.dropzone:focus-visible,
+.dropzone.is-over { border-color: var(--accent); background: var(--accent-soft); }
+.dropzone.is-busy { cursor: progress; opacity: 0.7; }
+.dropzone.has-image { padding: 12px; border-style: solid; }
+
+.dropzone-empty { text-align: center; }
+.dropzone-mark {
+  display: block;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--text-faint);
+}
+.dropzone-empty p { margin: 9px 0 0; font-size: 13.5px; color: var(--text-dim); }
+.dropzone-empty small { display: block; margin-top: 5px; font-size: 11.5px; color: var(--text-faint); }
+
+.dropzone-preview { display: grid; gap: 10px; justify-items: start; }
+.dropzone-preview img {
+  width: 100%;
+  max-width: 320px;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+}
+.dropzone-clear {
+  padding: 6px 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 12px;
+  cursor: pointer;
+}
+.dropzone-clear:hover { color: var(--text); border-color: var(--text-faint); }
 
 .form-message {
   grid-column: 1 / -1;

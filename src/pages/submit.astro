@@ -72,6 +72,26 @@ const endpoint = apiUrl("/api/submissions");
           <input id="tags" name="tags" maxlength="200" placeholder="tokyo, night, architecture" />
         </div>
 
+        <div class="field field-wide">
+          <label for="thumbnail-input">サムネイル <span>任意</span></label>
+          <div class="dropzone" id="dropzone" role="button" tabindex="0"
+            aria-controls="thumbnail-status" aria-label="サムネイルの画像を選ぶ">
+            <input class="sr-only" id="thumbnail-input" type="file" accept="image/*" />
+            <div class="dropzone-empty" id="dropzone-empty">
+              <span class="dropzone-mark" aria-hidden="true">＋</span>
+              <p>クリックして選ぶ・ドラッグ・そのまま貼り付け</p>
+              <small>大きさも縦横比もそのままで大丈夫です</small>
+            </div>
+            <div class="dropzone-preview" id="dropzone-preview" hidden>
+              <img id="thumbnail-preview" alt="サムネイルのプレビュー" />
+              <button class="dropzone-clear" id="thumbnail-clear" type="button">画像を外す</button>
+            </div>
+          </div>
+          <span class="hint" id="thumbnail-status" role="status">
+            指定しなければ、Capture ID から生成した絵がカードになります。
+          </span>
+        </div>
+
         <div class="honeypot" aria-hidden="true">
           <label for="website">Website</label>
           <input id="website" name="website" tabindex="-1" autocomplete="off" />
@@ -101,6 +121,7 @@ const endpoint = apiUrl("/api/submissions");
 
 <script>
   import { normalizeCaptureInput } from "../lib/capture-id";
+  import { imageFrom, normalizeThumbnail } from "../lib/thumbnail";
   import { href } from "../lib/url";
 
   const form = document.getElementById("submit-form") as HTMLFormElement | null;
@@ -164,6 +185,95 @@ const endpoint = apiUrl("/api/submissions");
       reveal(successBox);
     }
 
+    // ---- thumbnail ------------------------------------------------------
+    // Optional, and deliberately forgiving: choose a file, drag one in, or
+    // just paste. Whatever arrives is refitted to the card's frame in the
+    // browser, so nobody has to think about size or ratio.
+    const dropzone = document.getElementById("dropzone")!;
+    const fileInput = document.getElementById("thumbnail-input") as HTMLInputElement;
+    const emptyState = document.getElementById("dropzone-empty")!;
+    const previewState = document.getElementById("dropzone-preview")!;
+    const previewImage = document.getElementById("thumbnail-preview") as HTMLImageElement;
+    const clearButton = document.getElementById("thumbnail-clear")!;
+    const thumbnailStatus = document.getElementById("thumbnail-status")!;
+    const IDLE_HINT = thumbnailStatus.textContent ?? "";
+
+    let thumbnail: string | null = null;
+    let processing = false;
+
+    function clearThumbnail() {
+      thumbnail = null;
+      fileInput.value = "";
+      previewImage.removeAttribute("src");
+      previewState.hidden = true;
+      emptyState.hidden = false;
+      dropzone.classList.remove("has-image");
+      thumbnailStatus.textContent = IDLE_HINT;
+    }
+
+    async function acceptImage(file: File | null) {
+      if (!file || processing) return;
+      processing = true;
+      dropzone.classList.add("is-busy");
+      thumbnailStatus.textContent = "画像を整えています…";
+
+      try {
+        thumbnail = await normalizeThumbnail(file);
+        previewImage.src = thumbnail;
+        emptyState.hidden = true;
+        previewState.hidden = false;
+        dropzone.classList.add("has-image");
+        // Roughly what will be uploaded: base64 costs about a third extra.
+        const kilobytes = Math.round((thumbnail.length * 3) / 4 / 1024);
+        thumbnailStatus.textContent = `カードの形に合わせました（約 ${kilobytes} KB）。`;
+      } catch (error) {
+        clearThumbnail();
+        thumbnailStatus.textContent =
+          error instanceof Error ? error.message : "画像を読み取れませんでした。";
+      } finally {
+        processing = false;
+        dropzone.classList.remove("is-busy");
+      }
+    }
+
+    dropzone.addEventListener("click", () => fileInput.click());
+    dropzone.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      fileInput.click();
+    });
+    fileInput.addEventListener("change", () => void acceptImage(fileInput.files?.[0] ?? null));
+
+    clearButton.addEventListener("click", (event) => {
+      // The whole zone opens the picker; removing must not reopen it.
+      event.stopPropagation();
+      clearThumbnail();
+    });
+
+    for (const type of ["dragenter", "dragover"]) {
+      dropzone.addEventListener(type, (event) => {
+        event.preventDefault();
+        dropzone.classList.add("is-over");
+      });
+    }
+    for (const type of ["dragleave", "dragend"]) {
+      dropzone.addEventListener(type, () => dropzone.classList.remove("is-over"));
+    }
+    dropzone.addEventListener("drop", (event) => {
+      event.preventDefault();
+      dropzone.classList.remove("is-over");
+      void acceptImage(imageFrom((event as DragEvent).dataTransfer));
+    });
+
+    // Anywhere on the page: pasting a screenshot is how most people will do
+    // this, and hunting for the right box first is friction.
+    document.addEventListener("paste", (event) => {
+      const file = imageFrom((event as ClipboardEvent).clipboardData);
+      if (!file) return;
+      event.preventDefault();
+      void acceptImage(file);
+    });
+
     urlInput.addEventListener("input", () => {
       readId();
       errorBox.hidden = true;
@@ -179,6 +289,11 @@ const endpoint = apiUrl("/api/submissions");
         errorBox.textContent = "先に有効な公開URLを入力してください。";
         reveal(errorBox);
         urlInput.focus();
+        return;
+      }
+      if (processing) {
+        errorBox.textContent = "画像の処理が終わるまで少しお待ちください。";
+        reveal(errorBox);
         return;
       }
 
@@ -197,6 +312,7 @@ const endpoint = apiUrl("/api/submissions");
             source_post: data.get("source_post"),
             note: data.get("note"),
             tags: data.get("tags"),
+            thumbnail,
             website: data.get("website"),
           }),
         });
@@ -210,6 +326,7 @@ const endpoint = apiUrl("/api/submissions");
 
         published(id);
         form.reset();
+        clearThumbnail();
         readId();
       } catch (error) {
         errorBox.textContent =

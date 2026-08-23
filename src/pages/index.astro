@@ -71,8 +71,8 @@ const known = catalogIds;
 <script>
   // Filtering and the "/" shortcut are small enough to own directly. Shipping
   // a framework runtime for this would cost more than it saves.
-  import { fetchLiveCaptures } from "../lib/api";
-  import { createCaptureCard } from "../lib/live-card";
+  import { fetchLiveCatalog, thumbnailUrl } from "../lib/api";
+  import { applyThumbnail, createCaptureCard } from "../lib/live-card";
 
   const gallery = document.getElementById("gallery");
   const grid = document.getElementById("grid");
@@ -140,13 +140,24 @@ const known = catalogIds;
       if (!(template instanceof HTMLTemplateElement)) return;
 
       const known = (gallery.dataset.known ?? "").split(" ").filter(Boolean);
-      const additions = await fetchLiveCaptures(known);
+      const { additions, thumbnails } = await fetchLiveCatalog(known);
+
+      // Pictures belong to both halves, so the cards built at build time get
+      // theirs even when nothing new was posted.
+      const decorate = (card: HTMLElement) => {
+        const id = card.dataset.id;
+        const version = id ? thumbnails.get(id) : undefined;
+        if (id && version !== undefined) applyThumbnail(card, thumbnailUrl(id, version));
+      };
+      for (const card of cards) decorate(card);
+
       if (additions.length === 0) return;
 
       for (const capture of additions) {
         const card = createCaptureCard(capture, template);
         if (!card) continue;
         card.dataset.date = capture.submitted_at;
+        decorate(card);
         grid.append(card);
       }
 

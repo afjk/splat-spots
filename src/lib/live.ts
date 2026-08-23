@@ -59,6 +59,27 @@ export function normalizeLiveCapture(value: unknown): CaptureRecord | null {
   };
 }
 
+/**
+ * Which captures have a thumbnail, and the version to hang on the image URL.
+ * Covers both halves: a capture committed to git can have a picture too.
+ */
+export function thumbnailVersions(payload: unknown): Map<string, number> {
+  const rows =
+    typeof payload === "object" && payload !== null &&
+    Array.isArray((payload as { thumbnails?: unknown }).thumbnails)
+      ? (payload as { thumbnails: unknown[] }).thumbnails
+      : [];
+
+  const versions = new Map<string, number>();
+  for (const row of rows) {
+    if (typeof row !== "object" || row === null) continue;
+    const { id, v } = row as { id?: unknown; v?: unknown };
+    if (typeof id !== "string" || !CAPTURE_ID_PATTERN.test(id)) continue;
+    versions.set(id, typeof v === "number" && Number.isFinite(v) ? v : 0);
+  }
+  return versions;
+}
+
 /** Live rows that git does not already cover, newest first. */
 export function liveAdditions(payload: unknown, known: Iterable<string>): CaptureRecord[] {
   const rows =

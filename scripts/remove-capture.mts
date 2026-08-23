@@ -6,12 +6,13 @@
  * Honouring a removal request is the one operation this site promises its
  * subjects, so it must be a single step.
  *
- * Splat Spots holds nothing but the record: no capture files, no copies of
- * anyone's imagery. Deleting the JSON is therefore the whole removal on the
- * git side — but listings are now published straight into D1, so a listing
- * that was never committed has no file to delete, and one that was can still
- * be re-served from its D1 row. Both cases are settled by the same statement,
- * which this prints every time rather than leaving to memory.
+ * Splat Spots holds no capture files and no copies of anyone's imagery, so
+ * deleting the JSON is the whole removal on the git side — but listings are
+ * now published straight into D1, so a listing that was never committed has no
+ * file to delete, and one that was can still be re-served from its D1 row. A
+ * submitted thumbnail lives there too, and is bytes rather than a link, so it
+ * has to be deleted rather than merely hidden. This prints both statements
+ * every time rather than leaving them to memory.
  */
 
 import { rm, stat } from "node:fs/promises";
@@ -40,9 +41,14 @@ const record = capturePath(id);
 
 /** The live half. Deleting the file does not touch it. */
 function unlistCommand(captureId: string): string {
+  const statements = [
+    `UPDATE submissions SET status='removed' WHERE capture_id='${captureId}'`,
+    // The picture is bytes we hold, so it goes rather than being hidden.
+    `DELETE FROM thumbnails WHERE capture_id='${captureId}'`,
+  ];
   return [
     "npx wrangler d1 execute splat-spots --remote -c worker/wrangler.toml \\",
-    `  --command "UPDATE submissions SET status='removed' WHERE capture_id='${captureId}'"`,
+    `  --command "${statements.join("; ")}"`,
   ].join("\n");
 }
 
@@ -68,4 +74,4 @@ if (await exists(record)) {
   console.log("If it is listed, it is a live row and only the statement below removes it.");
 }
 
-console.log(`\nThen unlist the live row:\n\n${unlistCommand(id)}\n`);
+console.log(`\nThen unlist the live row and delete the picture:\n\n${unlistCommand(id)}\n`);

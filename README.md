@@ -17,15 +17,18 @@ Unofficial and not affiliated with Insta360.**
 > Splat Spots does not crawl Insta360 or automatically discover captures.
 > Every listing originates from a URL submitted by a person.
 
-- **Capture のホストにはならない。**`.sog` / `.ply` / 動画 / 画像を保存・再配布しない
+- **Capture のホストにはならない。**`.sog` / `.ply` / 動画を保存・再配布しない
+- **Insta360 由来の画像は持たない。**カードのサムネイルは投稿者がアップロードしたものだけ
 - **Insta360 の内部 API を使わない。**共有ページを bot として取得もしない
 - **自動収集をしない。**掲載はすべて人が投稿したリンクから始まる
 - **即時公開する。**掲載前の確認は挟まない。防御は事後（[理由](docs/direction.md#なぜ事前確認をやめたか)）
 - **削除依頼に速やかに応じる**
 - **公式と誤認される表示をしない**
 
-カードに表示される絵は、Capture の ID からこのサイトが生成しているものです。
-Insta360 由来の画像は使っていません。
+サムネイルが無い Capture のカードには、ID からこのサイトが生成した絵が出ます。
+サムネイルはその上に重なるだけなので、画像が落ちてもカードは崩れません。
+**画像は git に入れず D1 にだけ置きます** — 一度コミットした画像は履歴に残り続け、
+「消しました」が嘘になるためです。
 
 ## 構成
 
@@ -35,6 +38,7 @@ worker/                   Cloudflare Worker + D1（投稿の受付とライブ�
 src/                      Astro の静的サイト
   lib/live.ts               API から来た行の検証（テスト対象）
   lib/live-card.ts          ライブな分のカード生成（textContent のみ）
+  lib/thumbnail.ts          投稿画像を 4:3 に焼き直す（ブラウザ側）
   pages/404.astro           ビルド後に追加されたスポットの /s/<id>
   lib/capture-id.ts         URL の検証と ID 抽出（ローカル処理のみ）
 scripts/                  掲載と削除
@@ -80,18 +84,19 @@ npm がオプションを自分のフラグとして食べるためで、直接�
 ### 削除依頼に対応する
 
 掲載は git と D1 の2箇所から来るので、**外すのも2箇所**です。
-`npm run remove` は git のファイルを消し、D1 側の UPDATE を必ず出力します。
+`npm run remove` は git のファイルを消し、D1 側の2文を必ず出力します。
 
 ```bash
 npm run remove -- 'GS3DG…'        # --dry-run で確認だけ
 git commit -am '…' && git push    # ビルド済みの側から消える
 
 npx wrangler d1 execute splat-spots --remote -c worker/wrangler.toml \
-  --command "UPDATE submissions SET status='removed' WHERE capture_id='GS3DG…'"
+  --command "UPDATE submissions SET status='removed' WHERE capture_id='GS3DG…'; \
+             DELETE FROM thumbnails WHERE capture_id='GS3DG…'"
 ```
 
-`removed` にした id は、**再投稿されても戻りません。**
-Splat Spots はレコードしか持っていないので、これで削除は完了です。
+`removed` にした id は、**再投稿されても戻りません。**サムネイルは持っているのが
+バイト列そのものなので、隠すのではなく消します。これで削除は完了です。
 
 依頼への対応が済んだら、受付側の状態も更新します。
 
@@ -106,8 +111,9 @@ npx wrangler d1 execute splat-spots --remote -c worker/wrangler.toml \
 
 | エンドポイント | 用途 |
 |---|---|
-| `POST /api/submissions` | URL を検証して D1 へ。**その時点で掲載** |
-| `GET /api/captures` | ライブなカタログ（ギャラリーが読み込み後に取得） |
+| `POST /api/submissions` | URL を検証して D1 へ。**その時点で掲載**。サムネイルもここ |
+| `GET /api/captures` | ライブなカタログとサムネイルの一覧 |
+| `GET /api/thumbnails/<id>` | サムネイル1枚（URL に version が入るので長期キャッシュ） |
 | `POST /api/reports` | 削除・修正依頼を D1 へ |
 | `GET /api/queue` | 入ってきたものと未処理の依頼（Bearer 認証） |
 
@@ -120,6 +126,12 @@ npx wrangler d1 execute splat-spots --remote -c worker/wrangler.toml \
 - ハニーポット項目（埋まっていたら保存せず成功を返す）
 - 1時間あたりの投稿数の上限（投稿20 / 依頼10。IP はハッシュ化して数えるだけ）
 - 投稿者が入れた文字列は必ず `textContent` で描画（`src/lib/live-card.ts`）
+- サムネイルは 400KB まで。宣言された MIME と実バイトの先頭が一致しなければ弾き、
+  `nosniff` を付けて返す。**Worker は画像をデコードしません**
+
+サムネイルはブラウザ側で 4:3・最大 1200×900 の JPEG に焼き直してから送られます
+（`src/lib/thumbnail.ts`）。縦長でもパノラマでも切り落とさず全体を入れ、余白は
+自分自身をぼかしたもので埋めます。EXIF は焼き直しの過程で落ちます。
 
 ### セットアップ
 
@@ -158,7 +170,7 @@ curl -H "Authorization: Bearer $QUEUE_TOKEN" https://<api>/api/queue
 ## スコープ外
 
 - 広域クロールや ID 列挙による発見
-- Capture 本体や派生画像の保持
+- Capture 本体や、Insta360 由来の画像・動画の保持
 - Insta360 の内部 API を用いた自動確認
 - 掲載前の人手による確認
 - ユーザーアカウント、コメント、いいね

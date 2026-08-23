@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { UNTITLED, liveAdditions, normalizeLiveCapture } from "../src/lib/live.ts";
+import {
+  UNTITLED,
+  liveAdditions,
+  normalizeLiveCapture,
+  thumbnailVersions,
+} from "../src/lib/live.ts";
 
 const ID = "GS3DG1e1717642f804279b86617dc5e196de8";
 const OTHER = "GS3DGf417973146c54511abec47317d1a9226";
@@ -87,5 +92,31 @@ test("collapses duplicate live rows and sorts newest first", () => {
 test("survives a payload that is not what the API promised", () => {
   for (const payload of [null, {}, { captures: "nope" }, [1, 2, 3]]) {
     assert.deepEqual(liveAdditions(payload, []), []);
+  }
+});
+
+test("reads which captures have a picture", () => {
+  const versions = thumbnailVersions({
+    thumbnails: [
+      { id: ID, v: 1756000000000 },
+      { id: OTHER, v: 1756000000001 },
+    ],
+  });
+  assert.equal(versions.get(ID), 1756000000000);
+  assert.equal(versions.get(OTHER), 1756000000001);
+});
+
+test("ignores thumbnail rows that name nothing valid", () => {
+  const versions = thumbnailVersions({
+    thumbnails: [{ id: "NOTANID", v: 1 }, { v: 2 }, null, "x", { id: ID }],
+  });
+  assert.equal(versions.size, 1);
+  // A row with no usable version still counts; the URL just carries 0.
+  assert.equal(versions.get(ID), 0);
+});
+
+test("survives a payload with no thumbnails at all", () => {
+  for (const payload of [null, {}, { thumbnails: "nope" }, { captures: [] }]) {
+    assert.equal(thumbnailVersions(payload).size, 0);
   }
 });

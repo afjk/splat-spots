@@ -21,8 +21,11 @@ import {
   listOpenReports,
   listPublishedSubmissions,
   listRecentSubmissions,
+  listThumbnailVersions,
   publishSubmission,
+  readThumbnail,
   saveReport,
+  saveThumbnail,
   withinRateLimit,
   type SubmissionRow,
 } from "./db.ts";
@@ -37,6 +40,9 @@ export interface Env {
 
 const DEFAULT_ORIGINS = ["https://afjk.github.io"];
 const MAX_BODY_BYTES = 8_192;
+/** A submission may carry a thumbnail, which the browser has already shrunk. */
+const MAX_SUBMISSION_BYTES = 700_000;
+const MAX_THUMBNAIL_BYTES = 400_000;
 const SUBMISSIONS_PER_HOUR = 20;
 const REPORTS_PER_HOUR = 10;
 
@@ -101,12 +107,67 @@ function json(
   });
 }
 
-async function readJson(request: Request): Promise<Record<string, unknown>> {
+async function readJson(
+  request: Request,
+  max = MAX_BODY_BYTES,
+): Promise<Record<string, unknown>> {
   const length = Number(request.headers.get("content-length") ?? "0");
-  if (length > MAX_BODY_BYTES) throw new Error("送信内容が大きすぎます。");
+  if (length > max) throw new Error("送信内容が大きすぎます。");
   const text = await request.text();
-  if (text.length > MAX_BODY_BYTES) throw new Error("送信内容が大きすぎます。");
+  if (text.length > max) throw new Error("送信内容が大きすぎます。");
   return JSON.parse(text) as Record<string, unknown>;
+}
+
+/** What the first bytes of a file must be for the type it claims to be. */
+const IMAGE_SIGNATURES: { type: string; test: (bytes: Uint8Array) => boolean }[] = [
+  { type: "image/jpeg", test: (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff },
+  {
+    type: "image/png",
+    test: (b) => b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47,
+  },
+  {
+    type: "image/webp",
+    test: (b) =>
+      b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 &&
+      b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50,
+  },
+];
+
+/**
+ * Reads the `data:` URL the form produced. The browser re-encodes whatever was
+ * chosen or pasted into a small JPEG first, so anything large or exotic
+ * arriving here did not come from the form. The declared type has to match the
+ * actual bytes, because this is served straight back to other people.
+ */
+function decodeThumbnail(value: unknown): { contentType: string; bytes: Uint8Array } | null {
+  const source = typeof value === "string" ? value.trim() : "";
+  if (!source) return null;
+
+  const match = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(source);
+  if (!match) throw new Error("画像を読み取れませんでした。");
+
+  const [, declared, encoded] = match;
+  if (encoded.length > Math.ceil(MAX_THUMBNAIL_BYTES / 3) * 4) {
+    throw new Error("画像が大きすぎます。");
+  }
+
+  let binary: string;
+  try {
+    binary = atob(encoded);
+  } catch {
+    throw new Error("画像を読み取れませんでした。");
+  }
+  if (binary.length > MAX_THUMBNAIL_BYTES) throw new Error("画像が大きすぎます。");
+  if (binary.length < 64) throw new Error("画像を読み取れませんでした。");
+
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+
+  const signature = IMAGE_SIGNATURES.find((candidate) => candidate.test(bytes));
+  if (!signature || signature.type !== declared) {
+    throw new Error("画像として読み取れないファイルです。");
+  }
+  return { contentType: signature.type, bytes };
 }
 
 /** Hourly cap key. The address is hashed, never stored or logged as-is. */
@@ -149,7 +210,7 @@ function asCapture(row: SubmissionRow): Record<string, unknown> {
 async function handleSubmission(request: Request, env: Env): Promise<Response> {
   let payload: Record<string, unknown>;
   try {
-    payload = await readJson(request);
+    payload = await readJson(request, MAX_SUBMISSION_BYTES);
   } catch (error) {
     return json(
       { error: error instanceof Error ? error.message : "入力内容を読み取れませんでした。" },
@@ -172,6 +233,16 @@ async function handleSubmission(request: Request, env: Env): Promise<Response> {
     );
   }
 
+  let thumbnail: { contentType: string; bytes: Uint8Array } | null;
+  try {
+    thumbnail = decodeThumbnail(payload.thumbnail);
+  } catch (error) {
+    return json(
+      { error: error instanceof Error ? error.message : "画像を読み取れませんでした。" },
+      400, request, env,
+    );
+  }
+
   try {
     await ensureSchema(env.DB);
     if (!(await withinRateLimit(env.DB, await clientKey(request), SUBMISSIONS_PER_HOUR))) {
@@ -189,6 +260,18 @@ async function handleSubmission(request: Request, env: Env): Promise<Response> {
       created_at: new Date().toISOString(),
       status: "published",
     });
+    if (thumbnail) {
+      await saveThumbnail(env.DB, {
+        capture_id: id,
+        content_type: thumbnail.contentType,
+        // D1 takes the buffer itself; slice keeps it from carrying the view.
+        bytes: thumbnail.bytes.buffer.slice(
+          thumbnail.bytes.byteOffset,
+          thumbnail.bytes.byteOffset + thumbnail.bytes.byteLength,
+        ),
+        updated_at: Date.now(),
+      });
+    }
   } catch {
     return json(
       { error: "現在受け付けられません。時間をおいて試してください。" },
@@ -199,16 +282,61 @@ async function handleSubmission(request: Request, env: Env): Promise<Response> {
   return json({ ok: true, status: "published", capture: { id } }, 201, request, env);
 }
 
-/** The live catalog. Public: the gallery reads this on every load. */
+/**
+ * The live catalog. Public: the gallery reads this on every load.
+ *
+ * `thumbnails` covers both halves — a capture committed to git can have a
+ * picture here too — and carries the version the gallery hangs on the image
+ * URL so a replaced picture is never served from cache.
+ */
 async function handleCaptures(request: Request, env: Env): Promise<Response> {
   try {
     await ensureSchema(env.DB);
-    const rows = await listPublishedSubmissions(env.DB);
-    return json({ captures: rows.map(asCapture) }, 200, request, env);
+    const [rows, thumbnails] = await Promise.all([
+      listPublishedSubmissions(env.DB),
+      listThumbnailVersions(env.DB),
+    ]);
+    return json({ captures: rows.map(asCapture), thumbnails }, 200, request, env);
   } catch {
     // The gallery still has everything in git; an empty live half is survivable.
-    return json({ captures: [] }, 200, request, env);
+    return json({ captures: [], thumbnails: [] }, 200, request, env);
   }
+}
+
+/**
+ * One thumbnail. The URL carries the version, so it can be cached hard: a new
+ * picture is a new URL. Served as an image and nothing else — declared type
+ * matched the bytes on the way in, and nosniff keeps it that way.
+ */
+async function handleThumbnail(request: Request, env: Env, id: string): Promise<Response> {
+  if (!CAPTURE_ID_PATTERN.test(id)) return json({ error: "not found" }, 404, request, env);
+
+  let row: Awaited<ReturnType<typeof readThumbnail>>;
+  try {
+    await ensureSchema(env.DB);
+    row = await readThumbnail(env.DB, id);
+  } catch {
+    return json({ error: "unavailable" }, 503, request, env);
+  }
+  if (!row) return json({ error: "not found" }, 404, request, env);
+
+  const body = new Uint8Array(row.bytes);
+  const etag = `"${id}-${row.updated_at}"`;
+  if (request.headers.get("if-none-match") === etag) {
+    return new Response(null, { status: 304, headers: { etag, ...corsHeaders(request, env) } });
+  }
+
+  return new Response(body, {
+    headers: {
+      "content-type": row.content_type,
+      "content-length": String(body.byteLength),
+      "cache-control": "public, max-age=31536000, immutable",
+      "x-content-type-options": "nosniff",
+      "content-security-policy": "default-src 'none'; sandbox",
+      etag,
+      ...corsHeaders(request, env),
+    },
+  });
 }
 
 const REPORT_TYPES = new Set([
@@ -320,6 +448,9 @@ export default {
     }
     if (pathname === "/api/captures" && request.method === "GET") {
       return handleCaptures(request, env);
+    }
+    if (pathname.startsWith("/api/thumbnails/") && request.method === "GET") {
+      return handleThumbnail(request, env, pathname.slice("/api/thumbnails/".length));
     }
     if (pathname === "/api/reports" && request.method === "POST") {
       return handleReport(request, env);

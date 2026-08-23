@@ -7,6 +7,11 @@
  *
  * Removing a listing means flipping its status here:
  *   UPDATE submissions SET status='removed' WHERE capture_id='GS3DG…'
+ *
+ * Thumbnails live here too, and only here. They are deliberately kept out of
+ * git: an image committed once stays in the history forever, which would make
+ * "we deleted it" untrue. A row is the whole of the picture, so deleting the
+ * row is the whole of the deletion.
  */
 
 export type SubmissionRow = {
@@ -22,6 +27,13 @@ export type SubmissionRow = {
   created_at: string;
   /** `published` is live; anything else is hidden. */
   status: string;
+};
+
+export type ThumbnailRow = {
+  capture_id: string;
+  content_type: string;
+  bytes: ArrayBuffer;
+  updated_at: number;
 };
 
 export type ReportRow = {
@@ -74,6 +86,15 @@ const SCHEMA = [
     bucket TEXT PRIMARY KEY NOT NULL,
     hits INTEGER NOT NULL DEFAULT 0,
     expires_at INTEGER NOT NULL
+  )`,
+  // One picture per capture, keyed by capture id rather than by submission:
+  // a capture committed to git has no row in `submissions` but can still have
+  // a thumbnail. `updated_at` is the cache key the gallery appends to the URL.
+  `CREATE TABLE IF NOT EXISTS thumbnails (
+    capture_id TEXT PRIMARY KEY NOT NULL,
+    content_type TEXT NOT NULL,
+    bytes BLOB NOT NULL,
+    updated_at INTEGER NOT NULL
   )`,
 ];
 
@@ -160,6 +181,57 @@ export async function listOpenReports(db: D1Database): Promise<ReportRow[]> {
     .prepare("SELECT * FROM reports WHERE status = 'open' ORDER BY created_at ASC LIMIT 100")
     .all<ReportRow>();
   return result.results;
+}
+
+/**
+ * A capture is hidden if it has a submission row that is not published. A
+ * capture with no submission row at all is one that lives in git, and the
+ * site decides on its own whether to show it.
+ */
+const VISIBLE = `(s.capture_id IS NULL OR s.status = 'published')`;
+
+export async function saveThumbnail(db: D1Database, row: ThumbnailRow): Promise<void> {
+  await db
+    .prepare(
+      `INSERT INTO thumbnails (capture_id, content_type, bytes, updated_at)
+       VALUES (?1,?2,?3,?4)
+       ON CONFLICT (capture_id) DO UPDATE SET
+         content_type = excluded.content_type,
+         bytes = excluded.bytes,
+         updated_at = excluded.updated_at`,
+    )
+    .bind(row.capture_id, row.content_type, row.bytes, row.updated_at)
+    .run();
+}
+
+/** Which captures have a picture, and the version to hang on its URL. */
+export async function listThumbnailVersions(
+  db: D1Database,
+): Promise<{ id: string; v: number }[]> {
+  const result = await db
+    .prepare(
+      `SELECT t.capture_id AS id, t.updated_at AS v FROM thumbnails t
+       LEFT JOIN submissions s ON s.capture_id = t.capture_id
+       WHERE ${VISIBLE}
+       ORDER BY t.updated_at DESC LIMIT 1000`,
+    )
+    .all<{ id: string; v: number }>();
+  return result.results;
+}
+
+export async function readThumbnail(
+  db: D1Database,
+  captureId: string,
+): Promise<{ content_type: string; bytes: number[]; updated_at: number } | null> {
+  return db
+    .prepare(
+      `SELECT t.content_type, t.bytes, t.updated_at FROM thumbnails t
+       LEFT JOIN submissions s ON s.capture_id = t.capture_id
+       WHERE t.capture_id = ?1 AND ${VISIBLE}`,
+    )
+    .bind(captureId)
+    // D1 hands a BLOB back as an array of byte values.
+    .first<{ content_type: string; bytes: number[]; updated_at: number }>();
 }
 
 const HOUR_MS = 3_600_000;
