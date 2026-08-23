@@ -1,0 +1,96 @@
+---
+import Base from "../../layouts/Base.astro";
+import { captures, displayCamera, displayDate } from "../../lib/catalog";
+import { viewerUrl } from "../../lib/viewer";
+import { href } from "../../lib/url";
+
+export function getStaticPaths() {
+  return captures.map((capture) => ({
+    params: { id: capture.id },
+    props: { capture },
+  }));
+}
+
+const { capture } = Astro.props;
+const launch = viewerUrl(capture.id);
+const date = displayDate(capture.captured_at);
+const camera = displayCamera(capture.camera);
+const checked = displayDate(capture.last_checked_at);
+const issueUrl =
+  "https://github.com/afjk/splat-spots/issues/new?title=" +
+  encodeURIComponent(`削除・修正依頼: ${capture.id}`);
+---
+
+<Base
+  title={capture.title}
+  description={capture.description || `${capture.title} — 公開 Insta360 Spatial Capture を WebXR で。`}
+  path={`/s/${capture.id}`}
+  image={`/thumbs/${capture.id}/og.jpg`}
+>
+  <section class="viewer-head shell">
+    <a class="back-link" href={href("/")}>← Gallery</a>
+    <h1>{capture.title}</h1>
+    {capture.description && <p class="lede">{capture.description}</p>}
+    <div class="viewer-actions">
+      <a class="btn btn-primary" href={launch} target="_blank" rel="noreferrer">
+        フルスクリーンで開く / Enter VR ↗
+      </a>
+      <a class="btn btn-ghost" href={capture.insta360_url} target="_blank" rel="noreferrer">
+        Insta360 で見る ↗
+      </a>
+    </div>
+  </section>
+
+  <section class="shell">
+    <div class="stage">
+      <div class="stage-bar">
+        <span class="dot" aria-hidden="true"></span>
+        <span>WEBXR VIEWER</span>
+        <code>{capture.id}</code>
+        <a href={launch} target="_blank" rel="noreferrer">Fullscreen ↗</a>
+      </div>
+      <iframe
+        src={launch}
+        title={`${capture.title} の WebXR ビューア`}
+        allow="fullscreen; xr-spatial-tracking; accelerometer; gyroscope"
+        allowfullscreen
+        loading="lazy"
+      ></iframe>
+      <p class="stage-note">
+        デスクトップ: ドラッグで視点移動 · Quest / PICO: 「フルスクリーンで開く」から VR に入れます
+      </p>
+    </div>
+  </section>
+
+  <section class="detail shell">
+    <div>
+      <p class="eyebrow">Catalog record</p>
+      <dl>
+        <div><dt>Capture ID</dt><dd><code>{capture.id}</code></dd></div>
+        <div><dt>撮影日</dt><dd>{date ?? "不明"}</dd></div>
+        <div><dt>カメラ</dt><dd>{camera ?? "不明"}</dd></div>
+        <div><dt>撮影者</dt><dd>{capture.source_author ?? "未確認"}</dd></div>
+        <div>
+          <dt>出典</dt>
+          <dd>
+            {capture.source_post_url ? (
+              <a href={capture.source_post_url} target="_blank" rel="noreferrer">
+                {capture.source_post_url}
+              </a>
+            ) : ("記載なし")}
+          </dd>
+        </div>
+        <div><dt>公開確認日</dt><dd>{checked ?? "未確認"}</dd></div>
+      </dl>
+    </div>
+
+    <aside class="side-card">
+      <p class="eyebrow">Creator control</p>
+      <p>
+        この空間の撮影者の方へ。掲載の停止や情報の修正はいつでも受け付けます。
+        Insta360 側で共有を解除していただければ、こちらでも自動的に掲載が外れます。
+      </p>
+      <a class="block" href={issueUrl} target="_blank" rel="noreferrer">削除・修正を依頼する ↗</a>
+    </aside>
+  </section>
+</Base>

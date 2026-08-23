@@ -1,16 +1,20 @@
 {
-  "name": "splat-atlas",
+  "name": "splat-spots",
   "version": "0.1.0",
   "private": true,
   "engines": {
     "node": ">=22.13.0"
   },
   "scripts": {
-    "dev": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext dev",
-    "build": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext build",
-    "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start",
-    "test": "npm run build && node --test tests/*.test.mjs tests/*.test.mts",
-    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "thumbs": "node scripts/build-thumbs.mts",
+    "add": "node scripts/add-capture.mts",
+    "verify": "node scripts/verify-catalog.mts",
+    "test": "node --test tests/catalog.test.mts",
+    "legacy:dev": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext dev",
+    "legacy:build": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext build",
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
@@ -27,6 +31,7 @@
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.2",
     "@vitejs/plugin-rsc": "0.5.26",
+    "astro": "^7.2.4",
     "drizzle-kit": "0.31.10",
     "eslint": "9.39.4",
     "eslint-config-next": "16.2.6",

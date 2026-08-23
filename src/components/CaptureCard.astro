@@ -1,0 +1,47 @@
+---
+import { href } from "../lib/url";
+import { displayCamera, displayDate, type CaptureRecord } from "../lib/catalog";
+
+interface Props {
+  capture: CaptureRecord;
+}
+
+const { capture } = Astro.props;
+const date = displayDate(capture.captured_at);
+const camera = displayCamera(capture.camera);
+
+// build-thumbs.mts writes these; missing files fall back to the gradient tile.
+const poster = href(`/thumbs/${capture.id}/poster.jpg`);
+const loop = href(`/thumbs/${capture.id}/loop.mp4`);
+const detail = href(`/s/${capture.id}`);
+
+// Searched client-side without exposing the markup to a framework runtime.
+const haystack = [capture.title, capture.description, camera ?? "", capture.source_author ?? "", ...capture.tags]
+  .join(" ")
+  .toLowerCase();
+---
+
+<article class="capture-card" data-capture data-search={haystack} data-tags={capture.tags.join(" ")}>
+  <a class="capture-thumb" href={detail} data-thumb>
+    <div class="thumb-placeholder" aria-hidden="true">No preview</div>
+    <img src={poster} alt="" loading="lazy" decoding="async" onerror="this.remove()" />
+    <video src={loop} muted loop playsinline preload="none" aria-hidden="true"></video>
+    <span class="xr-badge">WEBXR</span>
+    <span class="thumb-overlay"><span>Enter space ↗</span></span>
+  </a>
+  <div class="capture-body">
+    <h3><a href={detail}>{capture.title}</a></h3>
+    <p class="capture-meta">
+      {date && <span>{date}</span>}
+      {date && camera && <span class="sep">·</span>}
+      {camera && <span>{camera}</span>}
+      {capture.source_author && <span class="sep">·</span>}
+      {capture.source_author && <span>{capture.source_author}</span>}
+    </p>
+    {capture.tags.length > 0 && (
+      <div class="capture-tags">
+        {capture.tags.map((tag) => <span>#{tag}</span>)}
+      </div>
+    )}
+  </div>
+</article>

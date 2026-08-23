@@ -1,0 +1,86 @@
+---
+import "../styles/global.css";
+import { href, absolute } from "../lib/url";
+
+interface Props {
+  title: string;
+  description?: string;
+  path: string;
+  image?: string;
+}
+
+const TAGLINE = "Unofficial gallery of Insta360 Spatial Captures";
+const {
+  title,
+  description = TAGLINE,
+  path,
+  image = href("/og.png"),
+} = Astro.props;
+
+const fullTitle = title === "Splat Spots" ? `Splat Spots — ${TAGLINE}` : `${title} — Splat Spots`;
+const canonical = absolute(path);
+---
+
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#08080a" />
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" href={href("/favicon.png")} />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Splat Spots" />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={absolute(image)} />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+    />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="shell">
+        <a class="wordmark" href={href("/")}>
+          <span class="wordmark-dots" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+          Splat Spots
+        </a>
+        <nav class="site-nav">
+          <a href={href("/")}>Gallery</a>
+          <a class="optional" href={href("/about")}>About</a>
+          <a class="optional" href="https://github.com/afjk/insta360-sog-xr-viewer" target="_blank" rel="noreferrer">Viewer ↗</a>
+          <a href="https://github.com/afjk/splat-spots" target="_blank" rel="noreferrer">GitHub ↗</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <slot />
+    </main>
+
+    <footer class="site-footer">
+      <div class="shell">
+        <p class="disclaimer">
+          Splat Spots は有志による非公式のギャラリーです。Insta360 および Arashi Vision
+          とは関係がありません。掲載しているのは一般公開された共有リンクとその情報のみで、
+          3Dデータ本体は保持せず、閲覧時に公開元から直接読み込みます。
+        </p>
+        <nav>
+          <a href={href("/about")}>About</a>
+          <a href="https://github.com/afjk/splat-spots" target="_blank" rel="noreferrer">Source</a>
+          <a href="https://github.com/afjk/splat-spots/issues/new" target="_blank" rel="noreferrer">削除・修正依頼</a>
+        </nav>
+      </div>
+    </footer>
+  </body>
+</html>

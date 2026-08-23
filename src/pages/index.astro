@@ -1,0 +1,164 @@
+---
+import Base from "../layouts/Base.astro";
+import CaptureCard from "../components/CaptureCard.astro";
+import { captures, tagCounts } from "../lib/catalog";
+import { href } from "../lib/url";
+
+const tags = tagCounts().slice(0, 12);
+const count = captures.length;
+---
+
+<Base title="Splat Spots" path="/">
+  <section class="hero">
+    <div class="shell">
+      <p class="hero-badge"><span class="dot"></span> Unofficial · WebXR ready</p>
+      <h1>Spaces you can<br /><em>step into.</em></h1>
+      <p class="hero-lede">
+        一般公開された Insta360 Spatial Capture を集めた、有志による非公式ギャラリー。
+        ブラウザでそのまま見られて、Quest や PICO ならその場に立てます。
+      </p>
+      <div class="hero-actions">
+        {count > 0 && <a class="btn btn-primary" href="#gallery">ギャラリーを見る</a>}
+        <a class="btn btn-ghost" href={href("/about")}>このサイトについて</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="gallery shell" id="gallery">
+    {count > 0 ? (
+      <>
+        <div class="toolbar">
+          <label class="search">
+            <span aria-hidden="true">⌕</span>
+            <span class="sr-only">キャプチャを検索</span>
+            <input type="search" id="q" placeholder="場所、カメラ、タグで絞り込む…" autocomplete="off" />
+          </label>
+          {tags.length > 0 && (
+            <div class="tag-filters" id="tag-filters">
+              {tags.map((entry) => (
+                <button class="tag-chip" type="button" data-tag={entry.tag} aria-pressed="false">
+                  #{entry.tag}
+                </button>
+              ))}
+            </div>
+          )}
+          <p class="result-count" id="count" data-total={count}>{count} SPACES</p>
+        </div>
+
+        <div class="capture-grid" id="grid">
+          {captures.map((capture) => <CaptureCard capture={capture} />)}
+        </div>
+
+        <div class="empty" id="no-results" hidden>
+          <p class="eyebrow">No matches</p>
+          <h3>条件に合う空間がありません。</h3>
+          <p>検索語やタグを変えてみてください。</p>
+        </div>
+      </>
+    ) : (
+      <div class="empty">
+        <p class="eyebrow">Catalog empty</p>
+        <h3>まだ登録されている空間がありません。</h3>
+        <p>
+          公開されている Insta360 Spatial Capture を見つけたら、
+          リポジトリから登録できます。最初の一件を待っています。
+        </p>
+        <a class="btn btn-ghost" href="https://github.com/afjk/splat-spots" target="_blank" rel="noreferrer">
+          リポジトリを見る ↗
+        </a>
+      </div>
+    )}
+  </section>
+</Base>
+
+<script>
+  // Filtering, hover previews and the "/" shortcut are small enough to own
+  // directly. Shipping a framework runtime for this would cost more than it saves.
+  const grid = document.getElementById("grid");
+  if (grid) {
+    const cards = [...grid.querySelectorAll<HTMLElement>("[data-capture]")];
+    const input = document.getElementById("q") as HTMLInputElement | null;
+    const countEl = document.getElementById("count");
+    const noResults = document.getElementById("no-results");
+    const chips = [...document.querySelectorAll<HTMLButtonElement>(".tag-chip")];
+    const active = new Set<string>();
+
+    function apply() {
+      const needle = (input?.value ?? "").trim().toLowerCase();
+      let shown = 0;
+
+      for (const card of cards) {
+        const haystack = card.dataset.search ?? "";
+        const tags = (card.dataset.tags ?? "").split(" ").filter(Boolean);
+        const matchesText = !needle || haystack.includes(needle);
+        const matchesTags = active.size === 0 || [...active].every((tag) => tags.includes(tag));
+        const visible = matchesText && matchesTags;
+        card.hidden = !visible;
+        if (visible) shown += 1;
+      }
+
+      if (countEl) {
+        const total = countEl.dataset.total ?? "0";
+        countEl.textContent = shown === Number(total) ? `${total} SPACES` : `${shown} / ${total} SPACES`;
+      }
+      if (noResults) noResults.hidden = shown > 0;
+      grid.hidden = shown === 0;
+    }
+
+    input?.addEventListener("input", apply);
+
+    for (const chip of chips) {
+      chip.addEventListener("click", () => {
+        const tag = chip.dataset.tag;
+        if (!tag) return;
+        if (active.has(tag)) active.delete(tag);
+        else active.add(tag);
+        chip.setAttribute("aria-pressed", active.has(tag) ? "true" : "false");
+        apply();
+      });
+    }
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "/" && document.activeElement !== input) {
+        event.preventDefault();
+        input?.focus();
+      }
+      if (event.key === "Escape" && document.activeElement === input) input?.blur();
+    });
+
+    // Preview clips are only fetched once a card is actually hovered.
+    const motionOk = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (motionOk) {
+      for (const card of cards) {
+        const thumb = card.querySelector<HTMLElement>("[data-thumb]");
+        const video = card.querySelector("video");
+        if (!thumb || !video) continue;
+
+        // Reveal the clip only once frames are actually being shown, so a slow
+        // or missing loop.mp4 leaves the poster in place instead of flashing.
+        video.addEventListener("playing", () => thumb.classList.add("is-playing"));
+
+        const start = () => {
+          if (!video.getAttribute("src")) return;
+          if (video.preload === "none") {
+            video.preload = "auto";
+            video.load();
+          }
+          video.play().catch(() => {});
+        };
+        const stop = () => {
+          thumb.classList.remove("is-playing");
+          video.pause();
+          video.currentTime = 0;
+        };
+
+        thumb.addEventListener("pointerenter", start);
+        thumb.addEventListener("pointerleave", stop);
+        thumb.addEventListener("focus", start);
+        thumb.addEventListener("blur", stop);
+      }
+    }
+
+    apply();
+  }
+</script>
