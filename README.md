@@ -44,13 +44,21 @@ npm run build        # dist/ へ静的生成
 ### キャプチャを登録する
 
 ```bash
-npm run add 'https://app.insta360.com/3dspace/detail/GS3DG…' \
+# npm はオプションを自分のフラグとして食べるので、`--` が要ります。
+npm run add -- 'https://app.insta360.com/3dspace/detail/GS3DG…' \
   --title '任意のタイトル' \
   --tags 'tokyo,night' \
   --source-post 'https://…' \
   --author '撮影者'
 
 npm run thumbs       # 足りないサムネイルだけ生成
+```
+
+`--` を忘れるとURLだけが渡り、タグやタイトルは黙って無視されます。
+直接呼べばその落とし穴はありません。
+
+```bash
+node scripts/add-capture.mts '<URL>' --tags 'tokyo,night'
 ```
 
 `add` は Insta360 に公開状態を照会し、**非公開なら登録を拒否します**。
@@ -72,6 +80,14 @@ Insta360 の `effect` 動画から生成します。この素材には癖があ�
 - **H.265 (HEVC Main 10)** — ブラウザ互換のため H.264 に変換する
 - **1080×1920 の縦型** — カードは 4:5。切り出しはエンコード時に行う
 - **実シーンが現れるのは末尾の2〜3秒だけ** — 前半は粒子が集まる演出なので、末尾からサンプルする
+
+静止画は末尾付近の数フレームを試し、**最も情報量の多いもの**を選びます。カメラの
+最終位置は制御できないため、これがないと壁で終わったクリップは壁の絵になります。
+それでも良くないときは秒数を指定できます。
+
+```bash
+npm run thumbs -- --only GS3DG… --at 2.0 --force   # 末尾から2.0秒の位置を使う
+```
 
 生成済みのサムネイルは再生成しません（`--force` で明示的に上書き）。
 

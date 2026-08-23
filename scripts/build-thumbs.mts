@@ -13,8 +13,12 @@
  *
  * Insta360's clip spends its first two thirds on a particle-formation effect
  * and only resolves into the actual place near the end, so every frame is
- * sampled from the tail. Sources are portrait (1080x1920); the 4:5 and 1.91:1
- * crops are baked in here rather than left to CSS to keep the files small.
+ * sampled from the tail. Where exactly the camera ends up is arbitrary though,
+ * so several candidates are tried and the most detailed one wins — otherwise a
+ * clip that finishes facing a blank wall gets a blank thumbnail.
+ *
+ * Sources are portrait (1080x1920); the 4:5 and 1.91:1 crops are baked in here
+ * rather than left to CSS to keep the files small.
  *
  * Existing thumbnails are left alone unless --force is passed. Regenerating
  * unchanged files on every build would bloat the repository for no reason.
@@ -32,8 +36,12 @@ const run = promisify(execFile);
 
 const THUMBS_DIR = path.join(process.cwd(), "public", "thumbs");
 
-/** Seconds before the end to grab the still from. */
-const POSTER_OFFSET = 0.4;
+/**
+ * Seconds before the end to try for the still, best-looking one wins. A JPEG
+ * encoded at fixed quality is larger when the frame holds more detail, which
+ * is a good enough stand-in for "shows something".
+ */
+const POSTER_OFFSETS = [0.4, 1.1, 1.8, 2.5];
 /** Length of the hover loop, taken from the end of the clip. */
 const LOOP_SECONDS = 3.2;
 
@@ -119,8 +127,32 @@ function kb(bytes: number): string {
   return `${Math.round(bytes / 1024)}KB`;
 }
 
+/** Encode each candidate, keep the heaviest, discard the rest. */
+async function pickStillTime(source: string, duration: number, work: string): Promise<number> {
+  const { statSync } = await import("node:fs");
+  let best = { at: Math.max(0, duration - POSTER_OFFSETS[0]), bytes: -1 };
+
+  for (const offset of POSTER_OFFSETS) {
+    const at = duration - offset;
+    if (at < 0) continue;
+    const probe = path.join(work, `probe-${offset}.jpg`);
+    try {
+      await renderStill(source, probe, at, "1080:1350", "720:900", "7");
+      const bytes = statSync(probe).size;
+      if (bytes > best.bytes) best = { at, bytes };
+    } catch {
+      // A candidate that will not encode simply does not compete.
+    }
+  }
+
+  return best.at;
+}
+
 async function main(): Promise<void> {
   const force = process.argv.includes("--force");
+  const atIndex = process.argv.indexOf("--at");
+  // Manual override, in seconds before the end, when the automatic pick is poor.
+  const forcedOffset = atIndex >= 0 ? Number.parseFloat(process.argv[atIndex + 1] ?? "") : NaN;
   const onlyIndex = process.argv.indexOf("--only");
   const only = onlyIndex >= 0 ? process.argv[onlyIndex + 1] : null;
 
@@ -172,7 +204,9 @@ async function main(): Promise<void> {
       await mkdir(dir, { recursive: true });
       await download(previewUrl, source);
       const duration = await probeDuration(source);
-      const stillAt = Math.max(0, duration - POSTER_OFFSET);
+      const stillAt = Number.isFinite(forcedOffset)
+        ? Math.max(0, duration - forcedOffset)
+        : await pickStillTime(source, duration, work);
 
       await renderStill(source, poster, stillAt, "1080:1350", "720:900", "7");
       await renderStill(source, og, stillAt, "1080:566", "1200:630", "6");
@@ -181,7 +215,8 @@ async function main(): Promise<void> {
       const { statSync } = await import("node:fs");
       console.log(
         `render   ${id}  poster ${kb(statSync(poster).size)} · og ${kb(statSync(og).size)}` +
-          ` · loop ${kb(statSync(loop).size)}`,
+          ` · loop ${kb(statSync(loop).size)}` +
+          `  (still at -${(duration - stillAt).toFixed(1)}s)`,
       );
       rendered += 1;
     } catch (error) {
