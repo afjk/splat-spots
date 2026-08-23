@@ -1,6 +1,8 @@
 /**
  * Build-time view of `data/captures/`. The published site is a pure function
- * of these files, so a capture disappears from the gallery by deleting one file.
+ * of these files, so a capture disappears from the gallery by deleting one
+ * file. Nothing here is fetched from anywhere: every field was typed by a
+ * person during review.
  */
 
 const modules = import.meta.glob<CaptureRecord>("../../data/captures/*.json", {
@@ -8,27 +10,21 @@ const modules = import.meta.glob<CaptureRecord>("../../data/captures/*.json", {
   import: "default",
 });
 
-export type CaptureStatus = "available" | "unavailable";
+export type CaptureStatus = "published" | "unlisted";
 
 export type CaptureRecord = {
   id: string;
-  insta360_url: string;
+  url: string;
   title: string;
   description: string;
-  captured_at: string | null;
-  camera: string | null;
-  source_post_url: string | null;
-  source_author: string | null;
-  discovered_at: string;
-  last_checked_at: string | null;
-  status: CaptureStatus;
+  author: string | null;
   tags: string[];
+  source_post: string | null;
+  camera: string | null;
+  captured_at: string | null;
+  submitted_at: string;
+  status: CaptureStatus;
 };
-
-/** Insta360 reports both "X4 Air" and "Insta360 X6"; show one shape. */
-export function displayCamera(camera: string | null): string | null {
-  return camera ? camera.replace(/^Insta360\s+/i, "").trim() || null : null;
-}
 
 export function displayDate(value: string | null): string | null {
   if (!value) return null;
@@ -40,8 +36,8 @@ export function displayDate(value: string | null): string | null {
 }
 
 export const captures: CaptureRecord[] = Object.values(modules)
-  .filter((capture) => capture.status === "available")
-  .sort((a, b) => Date.parse(b.discovered_at) - Date.parse(a.discovered_at));
+  .filter((capture) => capture.status === "published")
+  .sort((a, b) => Date.parse(b.submitted_at) - Date.parse(a.submitted_at));
 
 export function captureById(id: string): CaptureRecord | undefined {
   return captures.find((capture) => capture.id === id);

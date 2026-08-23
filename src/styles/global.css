@@ -243,91 +243,74 @@ button, input { font: inherit; color: inherit; }
 /* ---------------------------------------------------------------- grid */
 .capture-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 264px), 1fr));
-  gap: clamp(16px, 2vw, 26px);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: clamp(18px, 2.2vw, 28px);
 }
 .capture-card { display: flex; flex-direction: column; }
 .capture-card[hidden] { display: none; }
 
-.capture-thumb {
+/*
+ * There is no photograph to show: the site holds only the link. The card is
+ * artwork this site draws from the capture's id, so it is distinctive per
+ * listing without borrowing anyone's imagery.
+ */
+.capture-visual {
   position: relative;
   display: block;
-  aspect-ratio: 4 / 5;
+  aspect-ratio: 4 / 3;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
   transition: border-color 0.2s ease, transform 0.25s ease;
 }
-.capture-card:hover .capture-thumb { border-color: var(--line-strong); transform: translateY(-3px); }
+.capture-card:hover .capture-visual { border-color: var(--line-strong); transform: translateY(-3px); }
 
-.capture-thumb img,
-.capture-thumb video {
+.capture-art { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+.visual-overlay {
   position: absolute;
   inset: 0;
-  z-index: 1;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: opacity 0.35s ease;
-}
-.capture-thumb video { z-index: 2; opacity: 0; }
-.capture-thumb.is-playing video { opacity: 1; }
-.capture-thumb.is-playing img { opacity: 0; }
-
-.thumb-placeholder {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  display: grid;
-  place-items: center;
-  background:
-    radial-gradient(120% 90% at 30% 20%, rgba(123, 92, 255, 0.22), transparent 62%),
-    radial-gradient(100% 80% at 78% 82%, rgba(74, 222, 128, 0.12), transparent 60%),
-    var(--surface);
-  font-family: var(--mono);
-  font-size: 10.5px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-}
-
-.thumb-overlay {
-  position: absolute;
-  z-index: 3;
-  inset: auto 0 0 0;
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 34px 13px 12px;
-  background: linear-gradient(to top, rgba(4, 4, 6, 0.86), transparent);
-  opacity: 0;
-  transition: opacity 0.2s ease;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 14px 15px;
+  background: linear-gradient(to top, rgba(6, 6, 9, 0.78), rgba(6, 6, 9, 0.05) 55%);
 }
-.capture-card:hover .thumb-overlay,
-.capture-thumb:focus-visible .thumb-overlay { opacity: 1; }
-.thumb-overlay span {
-  font-family: var(--mono);
-  font-size: 10.5px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.xr-badge {
-  position: absolute;
-  z-index: 3;
-  top: 11px;
-  right: 11px;
-  padding: 4px 8px;
-  border-radius: 6px;
-  background: rgba(8, 8, 10, 0.72);
-  backdrop-filter: blur(8px);
+.visual-kicker {
   font-family: var(--mono);
   font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.1em;
-  color: #c3b4ff;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.62);
 }
+.visual-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: auto;
+  margin-bottom: 9px;
+}
+.visual-meta span {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(8, 8, 10, 0.6);
+  backdrop-filter: blur(6px);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.8);
+}
+.visual-cta {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.66);
+  transition: color 0.2s ease;
+}
+.capture-card:hover .visual-cta,
+.capture-visual:focus-visible .visual-cta { color: #fff; }
 
 .capture-body { padding: 13px 2px 0; }
 .capture-body h3 {
@@ -338,18 +321,23 @@ button, input { font: inherit; color: inherit; }
   line-height: 1.35;
 }
 .capture-body h3 a:hover { color: #c3b4ff; }
+.capture-blurb {
+  margin: 7px 0 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
 .capture-meta {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 7px;
-  margin-top: 6px;
+  margin: 7px 0 0;
   font-family: var(--mono);
   font-size: 11px;
   letter-spacing: 0.05em;
   color: var(--text-faint);
 }
-.capture-meta .sep { opacity: 0.4; }
 .capture-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .capture-tags span {
   padding: 3px 8px;
@@ -501,11 +489,15 @@ button, input { font: inherit; color: inherit; }
 }
 .site-footer .shell {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px 26px;
+  flex-direction: column;
+  gap: 16px;
 }
-.site-footer .disclaimer { flex: 1 1 320px; max-width: 62ch; line-height: 1.55; }
+/* Stacked, not side by side: the disclaimer has to be readable, and at this
+   length it crowded the links when they shared a row. */
+.site-footer .disclaimer { margin: 0; max-width: 78ch; line-height: 1.6; }
+.site-footer .disclaimer strong { color: var(--text-dim); font-weight: 560; }
+.site-footer .disclaimer a { color: #c3b4ff; }
+.site-footer .disclaimer a:hover { text-decoration: underline; }
 .site-footer nav { display: flex; flex-wrap: wrap; gap: 18px; }
 .site-footer a:hover { color: var(--text); }
 
@@ -634,3 +626,16 @@ button, input { font: inherit; color: inherit; }
   font-size: 12.5px;
   color: var(--text-dim);
 }
+
+/* Submission guardrail, stated before the fields rather than after. */
+.notice {
+  margin: 18px 0 0;
+  padding: 13px 15px;
+  border: 1px solid rgba(123, 92, 255, 0.35);
+  border-radius: 9px;
+  background: var(--accent-soft);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-dim);
+}
+.notice strong { color: var(--text); }

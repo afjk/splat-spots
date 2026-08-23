@@ -7,25 +7,31 @@ const endpoint = apiUrl("/api/submissions");
 ---
 
 <Base
-  title="Submit a capture"
-  description="公開されている Insta360 Spatial Capture を Splat Spots に登録する。"
+  title="Recommend a spot"
+  description="公開されている Insta360 Spatial Capture を Splat Spots に推薦する。"
   path="/submit"
 >
   <section class="form-page shell">
     <a class="back-link" href={href("/")}>← Gallery</a>
-    <h1>公開キャプチャを登録する</h1>
+    <h1>Spatial Capture を推薦する</h1>
     <p class="lede">
-      すでに一般公開されている Insta360 Spatial Capture のURLを送ってください。
-      公開状態を確認したうえで受け付け、掲載前に内容を確認します。
+      見つけた Spatial Capture を教えてください。自分で撮ったものでなくても構いません。
+      いただいたURLは、掲載前に必ず人が開いて確認します。
+    </p>
+    <p class="notice">
+      <strong>すでに一般公開されている Capture だけを送ってください。</strong>
+      非公開・限定公開のリンクは送らないでください。<br />
+      Please submit only Spatial Captures that are already publicly accessible.
+      Do not submit private or access-restricted links.
     </p>
 
     {API_CONFIGURED ? (
       <form class="form-grid" id="submit-form" data-endpoint={endpoint} novalidate>
         <div class="field field-wide">
-          <label for="insta360_url">Insta360 の公開URL <b>*</b></label>
+          <label for="url">Spatial Capture の公開URL <b>*</b></label>
           <input
-            id="insta360_url"
-            name="insta360_url"
+            id="url"
+            name="url"
             type="url"
             inputmode="url"
             placeholder="https://app.insta360.com/3dspace/detail/GS3DG…"
@@ -43,29 +49,29 @@ const endpoint = apiUrl("/api/submissions");
         </div>
 
         <div class="field field-wide">
-          <label for="title">タイトル <span>省略すると Insta360 の名前を使います</span></label>
+          <label for="title">タイトル <span>任意</span></label>
           <input id="title" name="title" maxlength="120" placeholder="例：夜の日本橋を歩く" />
         </div>
 
-        <div class="field field-wide">
-          <label for="description">説明</label>
-          <textarea id="description" name="description" maxlength="600" rows="4"
-            placeholder="この空間について短く教えてください。"></textarea>
+        <div class="field">
+          <label for="author">撮影者 <span>任意</span></label>
+          <input id="author" name="author" maxlength="80" placeholder="@creator" />
         </div>
 
         <div class="field">
-          <label for="source_author">撮影者</label>
-          <input id="source_author" name="source_author" maxlength="80" placeholder="@creator" />
-        </div>
-
-        <div class="field">
-          <label for="source_post_url">出典URL</label>
-          <input id="source_post_url" name="source_post_url" type="url" inputmode="url"
-            placeholder="https://…" />
+          <label for="source_post">出典URL <span>任意</span></label>
+          <input id="source_post" name="source_post" type="url" inputmode="url"
+            placeholder="https://… (見かけた投稿など)" />
         </div>
 
         <div class="field field-wide">
-          <label for="tags">タグ <span>カンマ区切り・最大6個</span></label>
+          <label for="note">メモ <span>任意・確認する人へ</span></label>
+          <textarea id="note" name="note" maxlength="600" rows="4"
+            placeholder="どんな場所か、どこで見つけたかなど。"></textarea>
+        </div>
+
+        <div class="field field-wide">
+          <label for="tags">タグ <span>任意・カンマ区切り・最大6個</span></label>
           <input id="tags" name="tags" maxlength="200" placeholder="tokyo, night, architecture" />
         </div>
 
@@ -77,8 +83,9 @@ const endpoint = apiUrl("/api/submissions");
         <div class="form-note">
           <span aria-hidden="true">◎</span>
           <p>
-            送信されるのはURLと上の情報だけです。<strong>3Dデータ本体（.sog / .ply）はコピーしません。</strong>
-            非公開のキャプチャは受け付けられません。
+            送信されるのはURLと上の情報だけです。
+            <strong>Splat Spots は Capture 本体（.sog / .ply）も画像も保存しません。</strong>
+            リンクを索引するだけで、内容は Insta360 が配信し続けます。
           </p>
         </div>
 
@@ -86,7 +93,7 @@ const endpoint = apiUrl("/api/submissions");
         <div class="form-message is-success" id="form-success" role="status" hidden></div>
 
         <div class="form-actions field-wide">
-          <button class="btn btn-primary" type="submit" id="submit-button">登録を申請する</button>
+          <button class="btn btn-primary" type="submit" id="submit-button">推薦を送る</button>
           <span class="hint" id="submit-hint" hidden>確認しています…</span>
         </div>
       </form>
@@ -99,8 +106,7 @@ const endpoint = apiUrl("/api/submissions");
           <code>PUBLIC_API_BASE_URL</code> が設定されていないため、いまは受け付けられません。
           リポジトリから直接登録することもできます。
         </p>
-        <pre>npm run add '&lt;共有URL&gt;' --tags 'tokyo'
-npm run thumbs</pre>
+        <pre>node scripts/add-capture.mts '&lt;共有URL&gt;' --title '…' --tags 'tokyo'</pre>
       </div>
     )}
   </section>
@@ -117,7 +123,7 @@ npm run thumbs</pre>
       element.hidden = false;
       element.scrollIntoView({ behavior: "smooth", block: "center" });
     };
-    const urlInput = document.getElementById("insta360_url") as HTMLInputElement;
+    const urlInput = document.getElementById("url") as HTMLInputElement;
     const preview = document.getElementById("id-preview")!;
     const marker = preview.querySelector(".marker")!;
     const idValue = document.getElementById("id-value")!;
@@ -182,27 +188,26 @@ npm run thumbs</pre>
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
-            insta360_url: id,
+            url: id,
             title: data.get("title"),
-            description: data.get("description"),
-            source_author: data.get("source_author"),
-            source_post_url: data.get("source_post_url"),
+            author: data.get("author"),
+            source_post: data.get("source_post"),
+            note: data.get("note"),
             tags: data.get("tags"),
             website: data.get("website"),
           }),
         });
         const payload = (await response.json().catch(() => null)) as
-          | { ok?: boolean; error?: string; capture?: { title?: string | null } }
+          | { ok?: boolean; error?: string }
           | null;
 
         if (!response.ok || !payload?.ok) {
           throw new Error(payload?.error ?? "送信できませんでした。時間をおいて試してください。");
         }
 
-        const name = payload.capture?.title;
         successBox.innerHTML =
-          `<strong>受け付けました。</strong>${name ? `「${name}」の` : ""}公開状態を確認しました。` +
-          "内容を確認のうえ掲載します。反映まで少し時間がかかります。";
+          "<strong>受け付けました。</strong>" +
+          "人が内容を確認してから掲載します。反映まで少し時間がかかります。";
         reveal(successBox);
         form.reset();
         readId();

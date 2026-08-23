@@ -14,12 +14,13 @@ const count = captures.length;
       <p class="hero-badge"><span class="dot"></span> Unofficial · WebXR ready</p>
       <h1>Spaces you can<br /><em>step into.</em></h1>
       <p class="hero-lede">
-        一般公開された Insta360 Spatial Capture を集めた、有志による非公式ギャラリー。
+        一般公開された Insta360 Spatial Capture を、有志が持ち寄って集めているディレクトリ。
         ブラウザでそのまま見られて、Quest や PICO ならその場に立てます。
+        Insta360 とは関係のない非公式サイトです。
       </p>
       <div class="hero-actions">
         {count > 0 && <a class="btn btn-primary" href="#gallery">ギャラリーを見る</a>}
-        <a class="btn btn-ghost" href={href("/submit")}>キャプチャを登録する</a>
+        <a class="btn btn-ghost" href={href("/submit")}>Capture を推薦する</a>
         <a class="text-link btn btn-ghost" href={href("/about")}>このサイトについて</a>
       </div>
     </div>
@@ -32,7 +33,7 @@ const count = captures.length;
           <label class="search">
             <span aria-hidden="true">⌕</span>
             <span class="sr-only">キャプチャを検索</span>
-            <input type="search" id="q" placeholder="場所、カメラ、タグで絞り込む…" autocomplete="off" />
+            <input type="search" id="q" placeholder="場所、撮影者、タグで絞り込む…" autocomplete="off" />
           </label>
           {tags.length > 0 && (
             <div class="tag-filters" id="tag-filters">
@@ -61,18 +62,18 @@ const count = captures.length;
         <p class="eyebrow">Catalog empty</p>
         <h3>まだ登録されている空間がありません。</h3>
         <p>
-          公開されている Insta360 Spatial Capture を見つけたら、
-          リポジトリから登録できます。最初の一件を待っています。
+          公開されている Spatial Capture を見つけたら、URLを教えてください。
+          内容を確認のうえ掲載します。最初の一件を待っています。
         </p>
-        <a class="btn btn-ghost" href={href("/submit")}>最初の一件を登録する</a>
+        <a class="btn btn-ghost" href={href("/submit")}>最初の一件を推薦する</a>
       </div>
     )}
   </section>
 </Base>
 
 <script>
-  // Filtering, hover previews and the "/" shortcut are small enough to own
-  // directly. Shipping a framework runtime for this would cost more than it saves.
+  // Filtering and the "/" shortcut are small enough to own directly. Shipping
+  // a framework runtime for this would cost more than it saves.
   const grid = document.getElementById("grid");
   if (grid) {
     const cards = [...grid.querySelectorAll<HTMLElement>("[data-capture]")];
@@ -124,39 +125,6 @@ const count = captures.length;
       }
       if (event.key === "Escape" && document.activeElement === input) input?.blur();
     });
-
-    // Preview clips are only fetched once a card is actually hovered.
-    const motionOk = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (motionOk) {
-      for (const card of cards) {
-        const thumb = card.querySelector<HTMLElement>("[data-thumb]");
-        const video = card.querySelector("video");
-        if (!thumb || !video) continue;
-
-        // Reveal the clip only once frames are actually being shown, so a slow
-        // or missing loop.mp4 leaves the poster in place instead of flashing.
-        video.addEventListener("playing", () => thumb.classList.add("is-playing"));
-
-        const start = () => {
-          if (!video.getAttribute("src")) return;
-          if (video.preload === "none") {
-            video.preload = "auto";
-            video.load();
-          }
-          video.play().catch(() => {});
-        };
-        const stop = () => {
-          thumb.classList.remove("is-playing");
-          video.pause();
-          video.currentTime = 0;
-        };
-
-        thumb.addEventListener("pointerenter", start);
-        thumb.addEventListener("pointerleave", stop);
-        thumb.addEventListener("focus", start);
-        thumb.addEventListener("blur", stop);
-      }
-    }
 
     apply();
   }

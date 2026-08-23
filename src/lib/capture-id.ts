@@ -1,16 +1,20 @@
 /**
- * Capture identity rules, shared by the build scripts and the browser.
+ * Capture identity rules, shared by the browser, the scripts and the Worker.
  *
- * Kept free of Node and Astro imports so both sides can use exactly the same
- * validation — a submission rejected in the form is rejected by `npm run add`
- * for the same reason.
+ * This is the whole of Splat Spots' knowledge about a submitted link: parse
+ * the URL, confirm the host and shape, keep the id. Nothing here contacts
+ * Insta360, so a submission is accepted or rejected on the text alone and
+ * whether the capture is really public is settled by a person looking at it.
+ *
+ * Kept free of Node and Astro imports so every side validates identically — a
+ * URL the form accepts is one `npm run add` accepts, for the same reason.
  */
 
 export const CAPTURE_ID_PATTERN = /^GS3DG[A-Za-z0-9]{16,80}$/;
 
 const INSTA360_HOST = "app.insta360.com";
 
-export function canonicalInsta360Url(id: string): string {
+export function canonicalCaptureUrl(id: string): string {
   return `https://${INSTA360_HOST}/3dspace/detail/${id}`;
 }
 

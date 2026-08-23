@@ -1,14 +1,13 @@
 {
   "id": "GS3DG434e877ef4f2443e95c46ae22a6412ff",
-  "insta360_url": "https://app.insta360.com/3dspace/detail/GS3DG434e877ef4f2443e95c46ae22a6412ff",
+  "url": "https://app.insta360.com/3dspace/detail/GS3DG434e877ef4f2443e95c46ae22a6412ff",
   "title": "てすと",
   "description": "これはてすとです。",
-  "captured_at": "2026-08-23",
-  "camera": "Insta360 X6",
-  "source_post_url": null,
-  "source_author": "@afjk01",
-  "discovered_at": "2026-08-23T07:59:01.319Z",
-  "last_checked_at": "2026-08-23T08:14:57.727Z",
-  "status": "available",
-  "tags": []
+  "author": "@afjk01",
+  "tags": [],
+  "source_post": null,
+  "camera": null,
+  "captured_at": null,
+  "submitted_at": "2026-08-23",
+  "status": "published"
 }

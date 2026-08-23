@@ -1,0 +1,43 @@
+---
+import { hueFor, pointsFor } from "../lib/artwork";
+
+interface Props {
+  id: string;
+  label?: string | null;
+  compact?: boolean;
+}
+
+const { id, label = null, compact = false } = Astro.props;
+const hue = hueFor(id);
+const points = pointsFor(id, compact ? 120 : 190);
+---
+
+<svg
+  class="capture-art"
+  viewBox="0 0 400 300"
+  preserveAspectRatio="xMidYMid slice"
+  role="img"
+  aria-label={label ? `${label} の抽象アートワーク` : "抽象アートワーク"}
+  style={`--art-hue: ${hue}`}
+>
+  <defs>
+    <radialGradient id={`glow-${id}`} cx="50%" cy="62%" r="72%">
+      <stop offset="0%" stop-color={`hsl(${hue} 70% 46%)`} stop-opacity="0.5" />
+      <stop offset="55%" stop-color={`hsl(${(hue + 40) % 360} 60% 30%)`} stop-opacity="0.22" />
+      <stop offset="100%" stop-color="#08080a" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+
+  <rect width="400" height="300" fill="#0c0c10" />
+  <rect width="400" height="300" fill={`url(#glow-${id})`} />
+
+  {points.map((point) => (
+    <circle
+      cx={point.x * 400}
+      cy={point.y * 300}
+      r={point.r}
+      fill={`hsl(${(hue + point.y * 60) % 360} 80% ${58 + point.o * 24}%)`}
+      opacity={point.o}
+    />
+  ))}
+</svg>

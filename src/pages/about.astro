@@ -1,10 +1,11 @@
 ---
 import Base from "../layouts/Base.astro";
+import { href } from "../lib/url";
 ---
 
 <Base
   title="About"
-  description="Splat Spots がなぜあるのか、何を載せて何を載せないのか。"
+  description="Splat Spots がなぜあるのか、何を持ち、何を持たないのか。"
   path="/about"
 >
   <article class="prose shell">
@@ -24,27 +25,50 @@ import Base from "../layouts/Base.astro";
       Splat Spots はその一覧です。
     </p>
 
-    <h2>載せるもの / 載せないもの</h2>
+    <h2>Disclaimer</h2>
+    <p>
+      Splat Spots is an unofficial community-curated directory of publicly shared
+      spatial captures.
+    </p>
+    <p>
+      Splat Spots is not affiliated with or endorsed by Insta360.
+    </p>
+    <p>
+      Spatial Capture content is hosted by its original provider.
+      Splat Spots indexes links submitted by the community.
+    </p>
+    <p>
+      If you are the creator of a listed capture and would like it removed,
+      please use the <a href={href("/report")}>removal request form</a>.
+    </p>
+
+    <h2>持つもの / 持たないもの</h2>
     <ul>
       <li>載せるのは、<strong>すでに一般公開されている共有リンク</strong>とその情報だけです。</li>
-      <li><strong>3Dデータ本体（.sog / .ply）は保持しません。</strong>閲覧時に公開元から直接読み込みます。</li>
-      <li>サムネイル用に、静止画と短いプレビュー動画だけを生成して保持しています。</li>
-      <li>ID の総当たりやクロールによる収集はしません。人が見つけた公開リンクだけを登録します。</li>
-      <li>非公開に設定されたキャプチャは掲載しません。公開が取り下げられれば掲載も外れます。</li>
+      <li><strong>Capture 本体（.sog / .ply）は保存しません。</strong>閲覧時に提供元から直接読み込みます。</li>
+      <li><strong>画像や動画も保存しません。</strong>カードの絵は、このサイトが Capture の ID から生成しているものです。</li>
+      <li>Insta360 を自動巡回しません。掲載は<strong>すべて人が投稿したリンク</strong>から始まります。</li>
+      <li>投稿は即時公開されません。<strong>人が確認してから</strong>掲載します。</li>
     </ul>
+
+    <h2>掲載の流れ</h2>
+    <p>
+      誰でも <a href={href("/submit")}>推薦フォーム</a> から Capture を教えられます。
+      自分が撮ったものでなくても構いません。ただし
+      <strong>すでに一般公開されているもの</strong>に限ります。
+    </p>
+    <p>
+      いただいたURLは待機列に入り、管理者がリンクを開いて、実際に公開されている
+      Spatial Capture であること、明らかに不適切な内容でないことを確認してから掲載します。
+    </p>
 
     <h2>撮影者の方へ</h2>
     <p>
-      掲載の停止や情報の修正はいつでも受け付けます。各キャプチャのページから依頼できます。
-      Insta360 側で共有を解除していただければ、日次の確認で自動的に掲載が外れます。
-    </p>
-
-    <h2>公式との関係</h2>
-    <p>
-      Splat Spots は<strong>有志による非公式のサイト</strong>で、Insta360 および
-      Arashi Vision とは一切関係がありません。カタログの中身は
+      掲載の停止や情報の修正はいつでも受け付けます。各キャプチャのページ、または
+      <a href={href("/report")}>Report / Request removal</a> からご連絡ください。
+      カタログの中身は
       <a href="https://github.com/afjk/splat-spots" target="_blank" rel="noreferrer">GitHub リポジトリ</a>
-      で全て公開されています。
+      で全て公開されており、1件が1ファイルなので、削除はそのファイルを消すだけです。
     </p>
   </article>
 </Base>

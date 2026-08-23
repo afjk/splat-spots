@@ -13,10 +13,10 @@ const endpoint = apiUrl("/api/reports");
 >
   <section class="form-page shell">
     <a class="back-link" href={href("/")}>← Gallery</a>
-    <h1>掲載の修正・削除を依頼する</h1>
+    <h1>Report / Request removal</h1>
     <p class="lede">
-      撮影者の方からの依頼を受け付けます。Insta360 側で共有を解除していただければ、
-      日次の確認で自動的に掲載が外れます。こちらからの依頼でも対応します。
+      掲載についてのご連絡を受け付けます。撮影者・権利者の方からの削除依頼には
+      速やかに対応します。リンク切れや情報の誤りのご報告も歓迎します。
     </p>
 
     {API_CONFIGURED ? (
@@ -29,11 +29,12 @@ const endpoint = apiUrl("/api/reports");
         </div>
 
         <div class="field">
-          <label for="request_type">依頼の種類 <b>*</b></label>
+          <label for="request_type">ご連絡の種類 <b>*</b></label>
           <select id="request_type" name="request_type" required>
-            <option value="remove">掲載を削除してほしい</option>
-            <option value="correction">情報を修正してほしい</option>
-            <option value="unavailable">すでに非公開にしている</option>
+            <option value="creator_removal">この Capture の撮影者で、掲載を削除してほしい</option>
+            <option value="not_public">この Capture はすでに公開されていない</option>
+            <option value="privacy">プライバシー上の懸念がある</option>
+            <option value="incorrect">情報が誤っている</option>
             <option value="other">その他</option>
           </select>
         </div>

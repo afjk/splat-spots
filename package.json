@@ -10,10 +10,8 @@
     "build": "astro build",
     "typecheck": "astro sync && tsc --noEmit && tsc --noEmit -p worker",
     "preview": "astro preview",
-    "thumbs": "node scripts/build-thumbs.mts",
     "add": "node scripts/add-capture.mts",
     "remove": "node scripts/remove-capture.mts",
-    "verify": "node scripts/verify-catalog.mts",
     "test": "npm run typecheck && node --test tests/catalog.test.mts"
   },
   "devDependencies": {

@@ -1,6 +1,6 @@
 ---
 import Base from "../../layouts/Base.astro";
-import { captures, displayCamera, displayDate } from "../../lib/catalog";
+import { captures, displayDate } from "../../lib/catalog";
 import { viewerUrl } from "../../lib/viewer";
 import { href } from "../../lib/url";
 
@@ -14,7 +14,6 @@ export function getStaticPaths() {
 const { capture } = Astro.props;
 const launch = viewerUrl(capture.id);
 const date = displayDate(capture.captured_at);
-const camera = displayCamera(capture.camera);
 const reportUrl = href(`/report?capture=${encodeURIComponent(capture.id)}`);
 ---
 
@@ -22,7 +21,6 @@ const reportUrl = href(`/report?capture=${encodeURIComponent(capture.id)}`);
   title={capture.title}
   description={capture.description || `${capture.title} — 公開 Insta360 Spatial Capture を WebXR で。`}
   path={`/s/${capture.id}`}
-  image={`/thumbs/${capture.id}/og.jpg`}
 >
   <section class="viewer-head shell">
     <a class="back-link" href={href("/")}>← Gallery</a>
@@ -64,22 +62,26 @@ const reportUrl = href(`/report?capture=${encodeURIComponent(capture.id)}`);
       <p class="eyebrow">Catalog record</p>
       <dl>
         <div><dt>Capture ID</dt><dd><code>{capture.id}</code></dd></div>
-        <div><dt>撮影日</dt><dd>{date ?? "不明"}</dd></div>
-        <div><dt>カメラ</dt><dd>{camera ?? "不明"}</dd></div>
-        <div><dt>撮影者</dt><dd>{capture.source_author ?? "未確認"}</dd></div>
+        {date && <div><dt>撮影日</dt><dd>{date}</dd></div>}
+        {capture.camera && <div><dt>カメラ</dt><dd>{capture.camera}</dd></div>}
+        <div><dt>撮影者</dt><dd>{capture.author ?? "未確認"}</dd></div>
         <div>
           <dt>出典</dt>
           <dd>
-            {capture.source_post_url ? (
-              <a href={capture.source_post_url} target="_blank" rel="noreferrer">
-                {capture.source_post_url}
+            {capture.source_post ? (
+              <a href={capture.source_post} target="_blank" rel="noreferrer">
+                {capture.source_post}
               </a>
             ) : ("記載なし")}
           </dd>
         </div>
+        <div><dt>掲載日</dt><dd>{displayDate(capture.submitted_at) ?? capture.submitted_at}</dd></div>
         <div>
-          <dt>公開状態</dt>
-          <dd>毎日 Insta360 に照会しています。共有が解除されると掲載も外れます。</dd>
+          <dt>ホスティング</dt>
+          <dd>
+            Capture 本体は Insta360 が配信しています。Splat Spots はリンクと
+            上記の情報だけを持っています。
+          </dd>
         </div>
       </dl>
     </div>
@@ -87,10 +89,10 @@ const reportUrl = href(`/report?capture=${encodeURIComponent(capture.id)}`);
     <aside class="side-card">
       <p class="eyebrow">Creator control</p>
       <p>
-        この空間の撮影者の方へ。掲載の停止や情報の修正はいつでも受け付けます。
-        Insta360 側で共有を解除していただければ、こちらでも自動的に掲載が外れます。
+        この空間の撮影者・権利者の方へ。掲載の停止や情報の修正はいつでも受け付けます。
+        ご連絡いただければ速やかに掲載を外します。
       </p>
-      <a class="block" href={reportUrl}>削除・修正を依頼する →</a>
+      <a class="block" href={reportUrl}>Report / Request removal →</a>
     </aside>
   </section>
 </Base>

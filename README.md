@@ -1,72 +1,83 @@
 # Splat Spots
 
-**Unofficial gallery of Insta360 Spatial Captures** — <https://afjk.github.io/splat-spots>
+**Community-curated directory of publicly shared Insta360 Spatial Captures.
+Unofficial and not affiliated with Insta360.**
+
+<https://afjk.github.io/splat-spots>
 
 公式ビューアが WebXR に対応していないこと、公開キャプチャを横断して眺められる場所が
-存在しないこと。この2つの欠落を埋めるための、有志による非公式ギャラリーです。
-ビューア本体は [`afjk/insta360-sog-xr-viewer`](https://github.com/afjk/insta360-sog-xr-viewer)。
+存在しないこと。この2つの欠落を埋めるために、有志が公開 Capture のリンクを持ち寄る
+場所です。ビューア本体は
+[`afjk/insta360-sog-xr-viewer`](https://github.com/afjk/insta360-sog-xr-viewer)。
 
 方針の全文は [`docs/direction.md`](docs/direction.md) にあります。
 
-## 何を持ち、何を持たないか
+## 原則
 
-- 載せるのは**すでに一般公開された共有リンク**とその情報だけ
-- **3Dアセット（`.sog` / `.ply`）は保持しない。**閲覧時に公開元から直接読み込む
-- サムネイル（静止画・短いループ動画）だけを派生物として保持する
-- ID の総当たりやクロールはしない
-- 撮影者からの削除・修正依頼を受け付ける
+> Splat Spots does not crawl Insta360 or automatically discover captures.
+> Every listing originates from a URL submitted by a person and is reviewed
+> before publication.
+
+- **Capture のホストにはならない。**`.sog` / `.ply` / 動画 / 画像を保存・再配布しない
+- **Insta360 の内部 API を使わない。**共有ページを bot として取得もしない
+- **自動収集をしない。**掲載はすべて人が投稿したリンクから始まる
+- **即時公開しない。**人が確認してから掲載する
+- **削除依頼に速やかに応じる**
+- **公式と誤認される表示をしない**
+
+カードに表示される絵は、Capture の ID からこのサイトが生成しているものです。
+Insta360 由来の画像は使っていません。
 
 ## 構成
 
 ```
 data/captures/<id>.json   公開カタログの「正」。1キャプチャ1ファイル
-public/thumbs/<id>/       派生サムネイル（ビルド成果物・コミットしない）
 src/                      Astro の静的サイト
-scripts/                  登録・検証・サムネ生成
-  lib/catalog.mts           レコードの読み書きと正規化
-  lib/insta360.mts          detail API クライアント
-.github/workflows/        GitHub Pages へのデプロイ
+scripts/                  掲載と削除
+  lib/catalog.mts           レコードの読み書き
+src/lib/capture-id.ts     URL の検証と ID 抽出（ローカル処理のみ）
+worker/                   Cloudflare Worker + D1（推薦の受付）
+.github/workflows/        GitHub Pages と Worker のデプロイ
 ```
 
 サイトは `data/captures/` の純粋な関数です。**1ファイル消せば、その空間は掲載から外れます。**
 
 ## 使い方
 
-Node.js 22.13 以上と ffmpeg が必要です。
+Node.js 22.13 以上。
 
 ```bash
 npm install
 npm run dev          # 開発サーバー
 npm test             # 型チェック + ユニットテスト
-npm run typecheck    # 型だけ
 npm run build        # dist/ へ静的生成
 ```
 
-`worker/` は Cloudflare の型が必要なので、独立した tsconfig で別に検査します。
-`npm run typecheck` は両方を見ます。
+### 掲載する
 
-### キャプチャを登録する
+推薦を受け取ったら、**まず自分でURLを開いて確認します。**
+
+- 実際に開けるか
+- Spatial Capture か
+- 明らかに不適切な内容でないか
+
+Splat Spots は Insta360 に問い合わせません。公開されているかどうかは、この目視確認が
+唯一の判断材料です。
 
 ```bash
-# npm はオプションを自分のフラグとして食べるので、`--` が要ります。
-npm run add -- 'https://app.insta360.com/3dspace/detail/GS3DG…' \
+node scripts/add-capture.mts 'https://app.insta360.com/3dspace/detail/GS3DG…' \
   --title '任意のタイトル' \
   --tags 'tokyo,night' \
-  --source-post 'https://…' \
-  --author '撮影者'
+  --author '@creator' \
+  --source-post 'https://…'
 
-npm run thumbs       # 足りないサムネイルだけ生成
+git commit -am '…' && git push
 ```
 
-`--` を忘れるとURLだけが渡り、タグやタイトルは黙って無視されます。
-直接呼べばその落とし穴はありません。
+`--camera` と `--captured-at` は、**確実に分かる場合だけ**指定します。推測で埋めません。
 
-```bash
-node scripts/add-capture.mts '<URL>' --tags 'tokyo,night'
-```
-
-`add` は Insta360 に公開状態を照会し、**非公開なら登録を拒否します**。
-タイトルなどを省略すると Insta360 が持つ情報で埋まります。
+`npm run add` 経由で使うなら `--` が必要です（`npm run add -- '<id>' --title …`）。
+npm がオプションを自分のフラグとして食べるためで、直接呼ぶほうが確実です。
 
 ### 削除依頼に対応する
 
@@ -75,11 +86,8 @@ npm run remove -- 'GS3DG…'        # --dry-run で確認だけ
 git commit -am '…' && git push    # 公開サイトから消える
 ```
 
-レコードと派生サムネイルを**必ず一緒に**消します。JSONだけ消すと一覧からは
-外れますが、その場所の画像が推測可能なURLに残り続けるためです。
-
-**サムネイルはコミットされないため、git 履歴にも残りません。** レコードを消せば、
-次のビルドがカタログと照合して該当ディレクトリを削除します。削除は完全です。
+Splat Spots はレコードしか持っていないので、**JSONを消せば削除は完了**です。
+画像も動画も保持していません。
 
 対応後、受付側の状態も更新します。
 
@@ -88,58 +96,22 @@ npx wrangler d1 execute splat-spots --remote -c worker/wrangler.toml \
   --command "UPDATE reports SET status='resolved' WHERE id='…'"
 ```
 
-### 掲載状態を確認する
-
-**毎日 03:19 UTC に GitHub Actions が自動実行します**（`.github/workflows/verify.yml`）。
-手動なら次のとおり。
-
-```bash
-npm run verify       # 全件を再照会し、共有解除されたものを unavailable にする
-```
-
-ネットワークが不調なだけのときは掲載を落としません。Insta360 が明確に「知らない」と
-答えたときだけ倒します。実質的な変化があったときだけ書き込むので、静かな日は
-コミットが発生しません。
-
-掲載を外す方向は露出を減らすので、レビューを待たずに main へ直接コミットします。
-逆に掲載する方向（キューの取り込み）は人が確認します。**レコードの削除**そのものは
-自動化せず、常に人の判断で行います。
-
-## サムネイルについて
-
-Insta360 の `effect` 動画から生成します。この素材には癖があります。
-
-- **H.265 (HEVC Main 10)** — ブラウザ互換のため H.264 に変換する
-- **1080×1920 の縦型** — カードは 4:5。切り出しはエンコード時に行う
-- **実シーンが現れるのは末尾の2〜3秒だけ** — 前半は粒子が集まる演出なので、末尾からサンプルする
-
-`npm run thumbs` は `public/thumbs/` を `data/captures/` に一致させます。
-レコードのないサムネイルは削除されるので、消したキャプチャがビルドキャッシュ経由で
-復活することはありません。
-
-静止画は末尾付近の数フレームを試し、**最も情報量の多いもの**を選びます。カメラの
-最終位置は制御できないため、これがないと壁で終わったクリップは壁の絵になります。
-それでも良くないときは秒数を指定できます。
-
-```bash
-npm run thumbs -- --only GS3DG… --at 2.0 --force   # 末尾から2.0秒の位置を使う
-```
-
-生成済みのサムネイルは再生成しません（`--force` で明示的に上書き）。
-
 ## API（Cloudflare Worker）
 
-投稿フォームと削除依頼の受け口。Insta360 の detail API が CORS ヘッダを返さないため、
-静的サイトから公開状態を確認できない。**Worker が存在する理由はこの一点**にある。
+推薦フォームと削除依頼の受け口です。
 
 | エンドポイント | 用途 |
 |---|---|
-| `POST /api/submissions` | URL を正規化・公開検証して D1 のキューへ |
-| `POST /api/reports` | 修正・削除依頼を D1 へ |
-| `GET /api/queue` | 未処理の投稿と依頼を返す（Bearer 認証） |
+| `POST /api/submissions` | URL を検証して D1 のキューへ |
+| `POST /api/reports` | 削除・修正依頼を D1 へ |
+| `GET /api/queue` | 未処理の推薦と依頼を返す（Bearer 認証） |
 
-**D1 に入った時点では何も公開されない。**人が確認して `data/captures/` に
-コミットして初めて掲載される。
+**Worker は Insta360 に一切アクセスしません。** することは URL の parse、hostname と
+形式の確認、ID 抽出、重複の集約、D1 への保存まで。公開されているかどうかの判断は
+掲載前の目視確認に委ねます。
+
+**D1 に入った時点では何も公開されません。**人が確認して `data/captures/` に
+コミットして初めて掲載されます。
 
 ### セットアップ
 
@@ -150,11 +122,11 @@ npx wrangler secret put QUEUE_TOKEN -c worker/wrangler.toml
 npx wrangler deploy -c worker/wrangler.toml
 ```
 
-デプロイ後、公開された URL をリポジトリ変数 `PUBLIC_API_BASE_URL` に設定する。
-未設定のあいだ、フォームは壊れる代わりに「受付準備中」と表示する。
+デプロイ後、公開された URL をリポジトリ変数 `PUBLIC_API_BASE_URL` に設定します。
+未設定のあいだ、フォームは壊れる代わりに「受付準備中」と表示します。
 
-GitHub Actions から Worker を自動デプロイする場合は、シークレット
-`CLOUDFLARE_API_TOKEN` と `CLOUDFLARE_ACCOUNT_ID` を設定する。
+GitHub Actions から Worker を自動デプロイするには、シークレット
+`CLOUDFLARE_API_TOKEN` と `CLOUDFLARE_ACCOUNT_ID` を設定します。
 
 ### ローカルで動かす
 
@@ -172,11 +144,11 @@ PUBLIC_API_BASE_URL=http://localhost:8787 npm run dev
 curl -H "Authorization: Bearer $QUEUE_TOKEN" https://<api>/api/queue
 ```
 
-返ってきた内容を確認し、掲載するものを `npm run add` で登録する。
+返ってきたURLを開いて確認し、掲載するものを `add-capture.mts` で登録します。
 
-## 現在の構成と今後
+## スコープ外
 
-フロントエンドは GitHub Pages、カタログは git、受付は Cloudflare Workers + D1。
-次はキューの取り込み自動化と、日次の公開状態確認です（`docs/direction.md` の Phase 3）。
-
-旧 Next.js + Cloudflare 実装は撤去済みです。
+- 広域クロールや ID 列挙による発見
+- Capture 本体や派生画像の保持
+- Insta360 の内部 API を用いた自動確認
+- ユーザーアカウント、コメント、いいね

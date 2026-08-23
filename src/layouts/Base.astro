@@ -9,7 +9,8 @@ interface Props {
   image?: string;
 }
 
-const TAGLINE = "Unofficial gallery of Insta360 Spatial Captures";
+const TAGLINE =
+  "Community-curated directory of publicly shared Insta360 Spatial Captures";
 // `image` and `path` are app-absolute ("/og.png"); absolute() applies the
 // deployment base exactly once. Do not pre-apply href() here.
 const {
@@ -59,7 +60,7 @@ const canonical = absolute(path);
         </a>
         <nav class="site-nav">
           <a href={href("/")}>Gallery</a>
-          <a href={href("/submit")}>Submit</a>
+          <a href={href("/submit")}>Recommend</a>
           <a class="optional" href={href("/about")}>About</a>
           <a class="optional" href="https://github.com/afjk/insta360-sog-xr-viewer" target="_blank" rel="noreferrer">Viewer ↗</a>
           <a href="https://github.com/afjk/splat-spots" target="_blank" rel="noreferrer">GitHub ↗</a>
@@ -74,9 +75,12 @@ const canonical = absolute(path);
     <footer class="site-footer">
       <div class="shell">
         <p class="disclaimer">
-          Splat Spots は有志による非公式のギャラリーです。Insta360 および Arashi Vision
-          とは関係がありません。掲載しているのは一般公開された共有リンクとその情報のみで、
-          3Dデータ本体は保持せず、閲覧時に公開元から直接読み込みます。
+          Splat Spots は、一般公開された Spatial Capture のリンクを有志が持ち寄っている
+          <strong>非公式のディレクトリ</strong>です。Insta360 および Arashi Vision とは
+          関係がなく、承認も受けていません。Capture 本体はそれぞれの提供元が配信しており、
+          Splat Spots は人が投稿したリンクを索引しているだけです。
+          掲載されている Capture の撮影者で削除をご希望の方は、
+          <a href={href("/report")}>Report / Request removal</a> からご連絡ください。
         </p>
         <nav>
           <a href={href("/about")}>About</a>

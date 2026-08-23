@@ -29,30 +29,6 @@ jobs:
 
       - run: npm ci
 
-      - name: Install ffmpeg
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
-
-      # Thumbnails are never committed, so every deploy derives them. The cache
-      # keeps that cheap; `npm run thumbs` prunes anything whose capture has
-      # left the catalog, so a restored cache can never resurrect a removed
-      # capture. Failures degrade to a placeholder tile rather than blocking.
-      - name: Key the thumbnail cache on the capture list
-        id: catalog
-        run: |
-          key=$(ls data/captures/*.json 2>/dev/null | xargs -r -n1 basename \
-                | sort | shasum -a 256 | cut -d' ' -f1)
-          echo "key=${key:-empty}" >> "$GITHUB_OUTPUT"
-
-      - uses: actions/cache@v4
-        with:
-          path: public/thumbs
-          key: thumbs-${{ steps.catalog.outputs.key }}
-          restore-keys: thumbs-
-
-      - name: Render thumbnails
-        run: npm run thumbs
-        continue-on-error: true
-
       - run: npm test
 
       # The forms post to the Worker. Set this repository variable to the

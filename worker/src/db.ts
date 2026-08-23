@@ -8,14 +8,13 @@
 export type SubmissionRow = {
   id: string;
   capture_id: string;
-  insta360_url: string;
+  url: string;
   title: string;
-  description: string;
-  source_post_url: string | null;
-  source_author: string | null;
+  /** Free text from the submitter, for the reviewer. Not published as-is. */
+  note: string;
+  source_post: string | null;
+  author: string | null;
   tags: string;
-  captured_at: string | null;
-  camera: string | null;
   created_at: string;
   status: string;
 };
@@ -35,14 +34,12 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS submissions (
     id TEXT PRIMARY KEY NOT NULL,
     capture_id TEXT NOT NULL,
-    insta360_url TEXT NOT NULL,
+    url TEXT NOT NULL,
     title TEXT NOT NULL DEFAULT '',
-    description TEXT NOT NULL DEFAULT '',
-    source_post_url TEXT,
-    source_author TEXT,
+    note TEXT NOT NULL DEFAULT '',
+    source_post TEXT,
+    author TEXT,
     tags TEXT NOT NULL DEFAULT '[]',
-    captured_at TEXT,
-    camera TEXT,
     created_at TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'new'
   )`,
@@ -74,23 +71,20 @@ export async function saveSubmission(db: D1Database, row: SubmissionRow): Promis
   await db
     .prepare(
       `INSERT INTO submissions (
-        id, capture_id, insta360_url, title, description, source_post_url,
-        source_author, tags, captured_at, camera, created_at, status
-      ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)
+        id, capture_id, url, title, note, source_post, author, tags,
+        created_at, status
+      ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)
       ON CONFLICT (capture_id) WHERE status = 'new' DO UPDATE SET
         title = excluded.title,
-        description = excluded.description,
-        source_post_url = excluded.source_post_url,
-        source_author = excluded.source_author,
+        note = excluded.note,
+        source_post = excluded.source_post,
+        author = excluded.author,
         tags = excluded.tags,
-        captured_at = excluded.captured_at,
-        camera = excluded.camera,
         created_at = excluded.created_at`,
     )
     .bind(
-      row.id, row.capture_id, row.insta360_url, row.title, row.description,
-      row.source_post_url, row.source_author, row.tags, row.captured_at,
-      row.camera, row.created_at, row.status,
+      row.id, row.capture_id, row.url, row.title, row.note,
+      row.source_post, row.author, row.tags, row.created_at, row.status,
     )
     .run();
 }

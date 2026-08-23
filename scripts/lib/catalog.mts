@@ -1,52 +1,61 @@
 /**
  * The published catalog. `data/captures/<id>.json` is the source of truth:
  * one reviewed capture per file, diffable, and removable by deleting the file.
+ *
+ * Every field here is either derived from the submitted URL or entered by a
+ * person. Nothing is fetched from Insta360 — Splat Spots does not read their
+ * APIs or scrape their pages, so any metadata beyond the link is optional and
+ * arrives because a human supplied it.
  */
 
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   CAPTURE_ID_PATTERN,
-  canonicalInsta360Url,
+  canonicalCaptureUrl,
   normalizeCaptureInput,
 } from "../../src/lib/capture-id.ts";
 
 // Re-exported so scripts have one import for catalog concerns.
-export { CAPTURE_ID_PATTERN, canonicalInsta360Url, normalizeCaptureInput };
+export { CAPTURE_ID_PATTERN, canonicalCaptureUrl, normalizeCaptureInput };
 
 export const CAPTURES_DIR = path.join(process.cwd(), "data", "captures");
 
-export type CaptureStatus = "available" | "unavailable";
+/**
+ * `unlisted` keeps a record out of the gallery without deleting it — used when
+ * a listing is reported dead and is waiting on a person to look.
+ */
+export type CaptureStatus = "published" | "unlisted";
 
 export type CaptureRecord = {
   id: string;
-  insta360_url: string;
+  url: string;
   title: string;
   description: string;
-  captured_at: string | null;
-  camera: string | null;
-  source_post_url: string | null;
-  source_author: string | null;
-  discovered_at: string;
-  last_checked_at: string | null;
-  status: CaptureStatus;
+  author: string | null;
   tags: string[];
+  source_post: string | null;
+  /** Optional, and only ever set from what a person actually knows. */
+  camera: string | null;
+  captured_at: string | null;
+  /** ISO date. A date rather than a timestamp keeps review diffs quiet. */
+  submitted_at: string;
+  status: CaptureStatus;
 };
 
 /** Serialization order. Keeping it fixed makes review diffs readable. */
 const FIELD_ORDER: (keyof CaptureRecord)[] = [
   "id",
-  "insta360_url",
+  "url",
   "title",
   "description",
-  "captured_at",
-  "camera",
-  "source_post_url",
-  "source_author",
-  "discovered_at",
-  "last_checked_at",
-  "status",
+  "author",
   "tags",
+  "source_post",
+  "camera",
+  "captured_at",
+  "submitted_at",
+  "status",
 ];
 
 export function capturePath(id: string): string {
@@ -81,19 +90,14 @@ export async function listCaptureIds(): Promise<string[]> {
     .sort();
 }
 
-/**
- * Ids the site actually publishes. Derived thumbnails must follow exactly this
- * set: a capture whose owner unshared it is unlisted, so keeping its images
- * served would leak the very thing the removal was for.
- */
-export function publishedIds(records: CaptureRecord[]): string[] {
-  return records.filter((record) => record.status === "available").map((record) => record.id);
-}
-
 /** Newest first, matching how the gallery renders. */
 export async function readCatalog(): Promise<CaptureRecord[]> {
   const records = await Promise.all((await listCaptureIds()).map(readCapture));
   return records.sort(
-    (a, b) => Date.parse(b.discovered_at) - Date.parse(a.discovered_at),
+    (a, b) => Date.parse(b.submitted_at) - Date.parse(a.submitted_at),
   );
+}
+
+export function todayIso(now = new Date()): string {
+  return now.toISOString().slice(0, 10);
 }

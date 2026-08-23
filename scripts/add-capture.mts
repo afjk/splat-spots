@@ -1,28 +1,32 @@
 /**
- * Register one public capture into the catalog.
+ * Publish a reviewed capture into the catalog.
  *
  *   node scripts/add-capture.mts <share-url-or-id> [options]
  *
- *     --title <text>          override the title Insta360 reports
- *     --description <text>    free prose shown on the card and detail page
+ *     --title <text>          shown on the card and the capture page
+ *     --description <text>    short prose about the place
+ *     --author <name>         who captured it, when known
  *     --tags <a,b,c>          comma separated
- *     --source-post <url>     where this capture was found (post, article)
- *     --author <name>         who captured it
- *     --force                 re-register an id that already has a file
+ *     --source-post <url>     where the capture was found
+ *     --camera <name>         only if actually known
+ *     --captured-at <date>    YYYY-MM-DD, only if actually known
+ *     --force                 re-publish an id that already has a record
  *
- * Refuses to write anything Insta360 does not report as publicly available.
+ * This writes what you tell it. Splat Spots does not query Insta360, so
+ * confirming the link is genuinely public and genuinely a Spatial Capture is
+ * something you do by opening it before running this.
  */
 
 import { access } from "node:fs/promises";
 import {
-  canonicalInsta360Url,
+  canonicalCaptureUrl,
   capturePath,
   normalizeCaptureInput,
   serializeCapture,
+  todayIso,
   writeCapture,
   type CaptureRecord,
 } from "./lib/catalog.mts";
-import { lookupCapture } from "./lib/insta360.mts";
 
 function option(name: string): string | null {
   const index = process.argv.indexOf(`--${name}`);
@@ -55,21 +59,9 @@ async function main(): Promise<void> {
     throw new Error(`${id} is already in the catalog. Pass --force to overwrite.`);
   }
 
-  const lookup = await lookupCapture(id);
-  if (lookup.state === "not_found") {
-    throw new Error(`そのCaptureが見つかりません: ${id}`);
-  }
-  if (lookup.state === "unreachable") {
-    throw new Error(`Insta360 に確認できませんでした: ${lookup.reason}`);
-  }
-
-  const meta = lookup.metadata;
-  if (!meta.available) {
-    throw new Error(
-      meta.private
-        ? "このCaptureは非公開に設定されています。登録できません。"
-        : "公開されたSOGが見つかりません。登録できません。",
-    );
+  const capturedAt = option("captured-at");
+  if (capturedAt && !/^\d{4}-\d{2}-\d{2}$/.test(capturedAt)) {
+    throw new Error("--captured-at must be YYYY-MM-DD.");
   }
 
   const tags = (option("tags") ?? "")
@@ -79,21 +71,20 @@ async function main(): Promise<void> {
 
   const record: CaptureRecord = {
     id,
-    insta360_url: canonicalInsta360Url(id),
-    title: option("title") || meta.title || "Untitled capture",
+    url: canonicalCaptureUrl(id),
+    title: option("title") || "Untitled spot",
     description: option("description") ?? "",
-    captured_at: meta.captured_at,
-    camera: meta.camera,
-    source_post_url: option("source-post"),
-    source_author: option("author"),
-    discovered_at: new Date().toISOString(),
-    last_checked_at: meta.checked_at,
-    status: "available",
+    author: option("author"),
     tags: [...new Set(tags)],
+    source_post: option("source-post"),
+    camera: option("camera"),
+    captured_at: capturedAt,
+    submitted_at: todayIso(),
+    status: "published",
   };
 
   await writeCapture(record);
-  console.log(`registered  data/captures/${id}.json\n`);
+  console.log(`published  data/captures/${id}.json\n`);
   console.log(serializeCapture(record).replace(/^/gm, "  "));
 }
 

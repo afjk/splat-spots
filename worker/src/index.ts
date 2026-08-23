@@ -1,9 +1,11 @@
 /**
- * Splat Spots API.
+ * Splat Spots API — the intake for community recommendations.
  *
- * Exists for one reason: Insta360's detail endpoint sends no CORS headers, so
- * the static gallery on GitHub Pages cannot verify a capture by itself. This
- * Worker does that check and parks the result in D1 for review.
+ * It parses the submitted URL, checks it is shaped like an Insta360 Spatial
+ * Capture share link, and parks it in D1. It deliberately does not contact
+ * Insta360: no API call, no fetching the share page. Whether a capture is
+ * really public is decided by a person opening the link during review, which
+ * keeps Splat Spots from behaving like a bot against someone else's service.
  *
  * It never publishes anything. The published catalog lives in git, and a
  * submission only becomes a listing when a person commits it.
@@ -11,7 +13,7 @@
 
 import {
   CAPTURE_ID_PATTERN,
-  canonicalInsta360Url,
+  canonicalCaptureUrl,
   normalizeCaptureInput,
 } from "../../src/lib/capture-id.ts";
 import {
@@ -21,7 +23,6 @@ import {
   saveReport,
   saveSubmission,
 } from "./db.ts";
-import { verifyCapture } from "./insta360.ts";
 
 export interface Env {
   DB: D1Database;
@@ -116,7 +117,7 @@ async function handleSubmission(request: Request, env: Env): Promise<Response> {
 
   let id: string;
   try {
-    id = normalizeCaptureInput(str(payload.insta360_url, 500));
+    id = normalizeCaptureInput(str(payload.url, 500));
   } catch (error) {
     return json(
       { error: error instanceof Error ? error.message : "URLを確認してください。" },
@@ -124,44 +125,20 @@ async function handleSubmission(request: Request, env: Env): Promise<Response> {
     );
   }
 
-  const verification = await verifyCapture(id);
-  if (verification.state === "not_found") {
-    return json(
-      { error: "そのCaptureが見つかりません。URLを確認してください。" },
-      404, request, env,
-    );
-  }
-  if (verification.state === "unreachable") {
-    return json(
-      { error: "Insta360への確認が一時的にできません。時間をおいて試してください。" },
-      503, request, env,
-    );
-  }
-  const facts = verification.facts;
-  if (!facts.available) {
-    return json(
-      {
-        error: facts.private
-          ? "このCaptureは非公開に設定されています。登録できません。"
-          : "公開された3Dデータが見つかりません。登録できません。",
-      },
-      422, request, env,
-    );
-  }
-
   try {
     await ensureSchema(env.DB);
+    // Re-submitting a capture that is still queued updates that row rather
+    // than adding another. Whether it is already published lives in git, which
+    // this Worker deliberately does not read.
     await saveSubmission(env.DB, {
       id: crypto.randomUUID(),
       capture_id: id,
-      insta360_url: canonicalInsta360Url(id),
-      title: str(payload.title, 120) || facts.title || "",
-      description: str(payload.description, 600),
-      source_post_url: optionalUrl(payload.source_post_url),
-      source_author: str(payload.source_author, 80) || null,
+      url: canonicalCaptureUrl(id),
+      title: str(payload.title, 120),
+      note: str(payload.note, 600),
+      source_post: optionalUrl(payload.source_post),
+      author: str(payload.author, 80) || null,
       tags: JSON.stringify(tagList(payload.tags)),
-      captured_at: facts.captured_at,
-      camera: facts.camera,
       created_at: new Date().toISOString(),
       status: "new",
     });
@@ -172,17 +149,16 @@ async function handleSubmission(request: Request, env: Env): Promise<Response> {
     );
   }
 
-  return json(
-    {
-      ok: true,
-      status: "queued",
-      capture: { id, title: facts.title, captured_at: facts.captured_at, camera: facts.camera },
-    },
-    201, request, env,
-  );
+  return json({ ok: true, status: "queued", capture: { id } }, 201, request, env);
 }
 
-const REPORT_TYPES = new Set(["remove", "correction", "unavailable", "other"]);
+const REPORT_TYPES = new Set([
+  "creator_removal",
+  "not_public",
+  "privacy",
+  "incorrect",
+  "other",
+]);
 
 function validEmail(value: string): boolean {
   return value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
