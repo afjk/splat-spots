@@ -1,0 +1,19 @@
+name = "splat-spots-api"
+main = "src/index.ts"
+compatibility_date = "2026-05-22"
+compatibility_flags = ["nodejs_compat"]
+
+# Created with:  npx wrangler d1 create splat-spots
+# Paste the returned database_id below.
+[[d1_databases]]
+binding = "DB"
+database_name = "splat-spots"
+database_id = "REPLACE_WITH_DATABASE_ID"
+
+[vars]
+# Extra origins allowed to call the API, comma separated. The production
+# origin (https://afjk.github.io) is always allowed.
+ALLOWED_ORIGINS = "http://localhost:4321"
+
+# QUEUE_TOKEN is a secret, not a var:
+#   npx wrangler secret put QUEUE_TOKEN

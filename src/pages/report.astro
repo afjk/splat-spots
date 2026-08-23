@@ -1,0 +1,150 @@
+---
+import Base from "../layouts/Base.astro";
+import { API_CONFIGURED, apiUrl } from "../lib/api";
+import { href } from "../lib/url";
+
+const endpoint = apiUrl("/api/reports");
+---
+
+<Base
+  title="Report or remove"
+  description="掲載中のキャプチャについて、修正・削除を依頼する。"
+  path="/report"
+>
+  <section class="form-page shell">
+    <a class="back-link" href={href("/")}>← Gallery</a>
+    <h1>掲載の修正・削除を依頼する</h1>
+    <p class="lede">
+      撮影者の方からの依頼を受け付けます。Insta360 側で共有を解除していただければ、
+      日次の確認で自動的に掲載が外れます。こちらからの依頼でも対応します。
+    </p>
+
+    {API_CONFIGURED ? (
+      <form class="form-grid" id="report-form" data-endpoint={endpoint} novalidate>
+        <div class="field field-wide">
+          <label for="capture_id">Capture ID <b>*</b></label>
+          <input id="capture_id" name="capture_id" required autocomplete="off"
+            placeholder="GS3DG…" />
+          <span class="hint">対象ページのURL末尾、または詳細ページの Capture ID 欄の値です。</span>
+        </div>
+
+        <div class="field">
+          <label for="request_type">依頼の種類 <b>*</b></label>
+          <select id="request_type" name="request_type" required>
+            <option value="remove">掲載を削除してほしい</option>
+            <option value="correction">情報を修正してほしい</option>
+            <option value="unavailable">すでに非公開にしている</option>
+            <option value="other">その他</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="relationship">この空間との関係</label>
+          <input id="relationship" name="relationship" maxlength="80" placeholder="撮影者 / 権利者 など" />
+        </div>
+
+        <div class="field field-wide">
+          <label for="requester_email">連絡先メールアドレス <b>*</b></label>
+          <input id="requester_email" name="requester_email" type="email" required
+            autocomplete="email" placeholder="you@example.com" />
+          <span class="hint">確認のご連絡にのみ使用します。公開されません。</span>
+        </div>
+
+        <div class="field field-wide">
+          <label for="message">依頼内容 <b>*</b></label>
+          <textarea id="message" name="message" rows="5" maxlength="1500" required
+            placeholder="どの点をどうしてほしいか、10文字以上でお書きください。"></textarea>
+        </div>
+
+        <div class="honeypot" aria-hidden="true">
+          <label for="website">Website</label>
+          <input id="website" name="website" tabindex="-1" autocomplete="off" />
+        </div>
+
+        <p class="form-message is-error" id="form-error" role="alert" hidden></p>
+        <div class="form-message is-success" id="form-success" role="status" hidden></div>
+
+        <div class="form-actions field-wide">
+          <button class="btn btn-primary" type="submit" id="submit-button">依頼を送信する</button>
+          <span class="hint" id="submit-hint" hidden>送信しています…</span>
+        </div>
+      </form>
+    ) : (
+      <div class="api-missing">
+        <p class="eyebrow">Not configured</p>
+        <h2>受付APIがまだ設定されていません。</h2>
+        <p>
+          お手数ですが、
+          <a href="https://github.com/afjk/splat-spots/issues/new">GitHub の Issue</a>
+          からご連絡ください。対象の Capture ID を書き添えていただけると助かります。
+        </p>
+      </div>
+    )}
+  </section>
+</Base>
+
+<script>
+  const form = document.getElementById("report-form") as HTMLFormElement | null;
+  if (form) {
+    // The message sits below a long form; showing it is not enough if it lands
+    // off-screen, so move it into view whenever it appears.
+    const reveal = (element: HTMLElement) => {
+      element.hidden = false;
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+    };
+    const captureInput = document.getElementById("capture_id") as HTMLInputElement;
+    const errorBox = document.getElementById("form-error")!;
+    const successBox = document.getElementById("form-success")!;
+    const button = document.getElementById("submit-button") as HTMLButtonElement;
+    const hint = document.getElementById("submit-hint")!;
+
+    // Arriving from a capture page: prefill so nobody has to copy an id by hand.
+    const fromQuery = new URLSearchParams(location.search).get("capture");
+    if (fromQuery) captureInput.value = fromQuery;
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      errorBox.hidden = true;
+      successBox.hidden = true;
+
+      const data = new FormData(form);
+      button.disabled = true;
+      hint.hidden = false;
+
+      try {
+        const response = await fetch(form.dataset.endpoint!, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            capture_id: data.get("capture_id"),
+            request_type: data.get("request_type"),
+            requester_email: data.get("requester_email"),
+            relationship: data.get("relationship"),
+            message: data.get("message"),
+            website: data.get("website"),
+          }),
+        });
+        const payload = (await response.json().catch(() => null)) as
+          | { ok?: boolean; error?: string }
+          | null;
+
+        if (!response.ok || !payload?.ok) {
+          throw new Error(payload?.error ?? "送信できませんでした。時間をおいて試してください。");
+        }
+
+        successBox.innerHTML =
+          "<strong>依頼を受け付けました。</strong>" +
+          "内容を確認のうえ対応します。折り返しご連絡する場合があります。";
+        reveal(successBox);
+        form.reset();
+        if (fromQuery) captureInput.value = fromQuery;
+      } catch (error) {
+        errorBox.textContent = error instanceof Error ? error.message : "送信できませんでした。";
+        reveal(errorBox);
+      } finally {
+        button.disabled = false;
+        hint.hidden = true;
+      }
+    });
+  }
+</script>

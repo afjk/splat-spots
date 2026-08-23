@@ -19,7 +19,8 @@ const count = captures.length;
       </p>
       <div class="hero-actions">
         {count > 0 && <a class="btn btn-primary" href="#gallery">ギャラリーを見る</a>}
-        <a class="btn btn-ghost" href={href("/about")}>このサイトについて</a>
+        <a class="btn btn-ghost" href={href("/submit")}>キャプチャを登録する</a>
+        <a class="text-link btn btn-ghost" href={href("/about")}>このサイトについて</a>
       </div>
     </div>
   </section>
@@ -63,9 +64,7 @@ const count = captures.length;
           公開されている Insta360 Spatial Capture を見つけたら、
           リポジトリから登録できます。最初の一件を待っています。
         </p>
-        <a class="btn btn-ghost" href="https://github.com/afjk/splat-spots" target="_blank" rel="noreferrer">
-          リポジトリを見る ↗
-        </a>
+        <a class="btn btn-ghost" href={href("/submit")}>最初の一件を登録する</a>
       </div>
     )}
   </section>

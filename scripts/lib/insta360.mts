@@ -27,6 +27,8 @@ export type CaptureMetadata = {
 
 export type LookupResult =
   | { state: "ok"; metadata: CaptureMetadata }
+  /** Insta360 answered and does not know this capture. Retrying will not help. */
+  | { state: "not_found" }
   | { state: "unreachable"; reason: string };
 
 function record(value: unknown): Record<string, unknown> | null {
@@ -90,8 +92,20 @@ function taskDetailEndpoints(id: string): string[] {
   );
 }
 
+/**
+ * A missing capture comes back as HTTP 200 with a non-zero `code`
+ * (40004 / FindNotFound), so "not found" has to be read out of the body.
+ * Telling it apart from a network problem matters: one is the submitter's
+ * typo, the other must never unpublish anything.
+ */
+export function isNotFoundBody(body: unknown): boolean {
+  const root = record(body);
+  return Boolean(root) && typeof root!.code === "number" && root!.code !== 0;
+}
+
 export async function lookupCapture(id: string, now = new Date()): Promise<LookupResult> {
   let lastReason = "Insta360 did not return a usable response.";
+  let sawNotFound = false;
 
   for (const endpoint of taskDetailEndpoints(id)) {
     try {
@@ -103,17 +117,16 @@ export async function lookupCapture(id: string, now = new Date()): Promise<Looku
         lastReason = `HTTP ${response.status} from ${new URL(endpoint).host}`;
         continue;
       }
-      const metadata = inspectTaskDetail(
-        await response.json().catch(() => null),
-        id,
-        now,
-      );
+      const body = await response.json().catch(() => null);
+      const metadata = inspectTaskDetail(body, id, now);
       if (metadata) return { state: "ok", metadata };
-      lastReason = "Response did not describe this capture.";
+      if (isNotFoundBody(body)) sawNotFound = true;
+      else lastReason = "Response did not describe this capture.";
     } catch (error) {
       lastReason = error instanceof Error ? error.message : String(error);
     }
   }
 
-  return { state: "unreachable", reason: lastReason };
+  // Only definitive once every region agrees it does not exist.
+  return sawNotFound ? { state: "not_found" } : { state: "unreachable", reason: lastReason };
 }

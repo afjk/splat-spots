@@ -75,10 +75,57 @@ Insta360 の `effect` 動画から生成します。この素材には癖があ�
 
 生成済みのサムネイルは再生成しません（`--force` で明示的に上書き）。
 
+## API（Cloudflare Worker）
+
+投稿フォームと削除依頼の受け口。Insta360 の detail API が CORS ヘッダを返さないため、
+静的サイトから公開状態を確認できない。**Worker が存在する理由はこの一点**にある。
+
+| エンドポイント | 用途 |
+|---|---|
+| `POST /api/submissions` | URL を正規化・公開検証して D1 のキューへ |
+| `POST /api/reports` | 修正・削除依頼を D1 へ |
+| `GET /api/queue` | 未処理の投稿と依頼を返す（Bearer 認証） |
+
+**D1 に入った時点では何も公開されない。**人が確認して `data/captures/` に
+コミットして初めて掲載される。
+
+### セットアップ
+
+```bash
+npx wrangler login
+npx wrangler d1 create splat-spots          # 出力の database_id を worker/wrangler.toml へ
+npx wrangler secret put QUEUE_TOKEN -c worker/wrangler.toml
+npx wrangler deploy -c worker/wrangler.toml
+```
+
+デプロイ後、公開された URL をリポジトリ変数 `PUBLIC_API_BASE_URL` に設定する。
+未設定のあいだ、フォームは壊れる代わりに「受付準備中」と表示する。
+
+GitHub Actions から Worker を自動デプロイする場合は、シークレット
+`CLOUDFLARE_API_TOKEN` と `CLOUDFLARE_ACCOUNT_ID` を設定する。
+
+### ローカルで動かす
+
+```bash
+echo 'QUEUE_TOKEN=local-test-token' > worker/.dev.vars
+cd worker && npx wrangler dev            # .dev.vars は cwd から読まれる
+
+# 別ターミナルで
+PUBLIC_API_BASE_URL=http://localhost:8787 npm run dev
+```
+
+### キューを取り込む
+
+```bash
+curl -H "Authorization: Bearer $QUEUE_TOKEN" https://<api>/api/queue
+```
+
+返ってきた内容を確認し、掲載するものを `npm run add` で登録する。
+
 ## 現在の構成と今後
 
-フロントエンドは GitHub Pages、カタログは git。投稿フォームと削除依頼の受け口を
-Cloudflare Workers + D1 に載せるのが次の段階です（`docs/direction.md` の Phase 2）。
+フロントエンドは GitHub Pages、カタログは git、受付は Cloudflare Workers + D1。
+次はキューの取り込み自動化と、日次の公開状態確認です（`docs/direction.md` の Phase 3）。
 
 リポジトリには旧 Next.js + Cloudflare 実装が `app/` `lib/` `worker/` などに残っており、
 `legacy:` 付きの npm script から動かせます。Phase 2 で Worker を切り出した時点で撤去します。

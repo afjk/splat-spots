@@ -5,7 +5,7 @@ import {
   serializeCapture,
   type CaptureRecord,
 } from "../scripts/lib/catalog.mts";
-import { inspectTaskDetail } from "../scripts/lib/insta360.mts";
+import { inspectTaskDetail, isNotFoundBody } from "../scripts/lib/insta360.mts";
 
 const ID = "GS3DG1e1717642f804279b86617dc5e196de8";
 const NOW = new Date("2026-08-23T05:00:00.000Z");
@@ -138,4 +138,16 @@ test("rejects anything that is not a public Insta360 capture", () => {
   for (const input of rejected) {
     assert.throws(() => normalizeCaptureInput(input), Error, `should reject ${input}`);
   }
+});
+
+test("tells a missing capture apart from an unreachable service", () => {
+  // Insta360 answers HTTP 200 with a non-zero code for an id it does not know.
+  assert.equal(isNotFoundBody({ code: 40004, msg: "FindNotFound" }), true);
+  assert.equal(isNotFoundBody({ code: 0, data: {} }), false);
+  // Anything that is not a recognisable answer must stay "unreachable", so a
+  // network problem can never be mistaken for a deleted capture.
+  assert.equal(isNotFoundBody(null), false);
+  assert.equal(isNotFoundBody("<html>502</html>"), false);
+  assert.equal(isNotFoundBody({}), false);
+  assert.equal(isNotFoundBody({ code: "40004" }), false);
 });

@@ -16,9 +16,7 @@ const launch = viewerUrl(capture.id);
 const date = displayDate(capture.captured_at);
 const camera = displayCamera(capture.camera);
 const checked = displayDate(capture.last_checked_at);
-const issueUrl =
-  "https://github.com/afjk/splat-spots/issues/new?title=" +
-  encodeURIComponent(`削除・修正依頼: ${capture.id}`);
+const reportUrl = href(`/report?capture=${encodeURIComponent(capture.id)}`);
 ---
 
 <Base
@@ -90,7 +88,7 @@ const issueUrl =
         この空間の撮影者の方へ。掲載の停止や情報の修正はいつでも受け付けます。
         Insta360 側で共有を解除していただければ、こちらでも自動的に掲載が外れます。
       </p>
-      <a class="block" href={issueUrl} target="_blank" rel="noreferrer">削除・修正を依頼する ↗</a>
+      <a class="block" href={reportUrl}>削除・修正を依頼する →</a>
     </aside>
   </section>
 </Base>

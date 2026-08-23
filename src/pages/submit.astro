@@ -1,0 +1,219 @@
+---
+import Base from "../layouts/Base.astro";
+import { API_CONFIGURED, apiUrl } from "../lib/api";
+import { href } from "../lib/url";
+
+const endpoint = apiUrl("/api/submissions");
+---
+
+<Base
+  title="Submit a capture"
+  description="公開されている Insta360 Spatial Capture を Splat Spots に登録する。"
+  path="/submit"
+>
+  <section class="form-page shell">
+    <a class="back-link" href={href("/")}>← Gallery</a>
+    <h1>公開キャプチャを登録する</h1>
+    <p class="lede">
+      すでに一般公開されている Insta360 Spatial Capture のURLを送ってください。
+      公開状態を確認したうえで受け付け、掲載前に内容を確認します。
+    </p>
+
+    {API_CONFIGURED ? (
+      <form class="form-grid" id="submit-form" data-endpoint={endpoint} novalidate>
+        <div class="field field-wide">
+          <label for="insta360_url">Insta360 の公開URL <b>*</b></label>
+          <input
+            id="insta360_url"
+            name="insta360_url"
+            type="url"
+            inputmode="url"
+            placeholder="https://app.insta360.com/3dspace/detail/GS3DG…"
+            autocomplete="off"
+            required
+          />
+          <div class="id-preview" id="id-preview">
+            <span class="marker" aria-hidden="true">→</span>
+            <div>
+              <small>Capture ID</small>
+              <code id="id-value">GS3DG…</code>
+              <p id="id-error" hidden></p>
+            </div>
+          </div>
+        </div>
+
+        <div class="field field-wide">
+          <label for="title">タイトル <span>省略すると Insta360 の名前を使います</span></label>
+          <input id="title" name="title" maxlength="120" placeholder="例：夜の日本橋を歩く" />
+        </div>
+
+        <div class="field field-wide">
+          <label for="description">説明</label>
+          <textarea id="description" name="description" maxlength="600" rows="4"
+            placeholder="この空間について短く教えてください。"></textarea>
+        </div>
+
+        <div class="field">
+          <label for="source_author">撮影者</label>
+          <input id="source_author" name="source_author" maxlength="80" placeholder="@creator" />
+        </div>
+
+        <div class="field">
+          <label for="source_post_url">出典URL</label>
+          <input id="source_post_url" name="source_post_url" type="url" inputmode="url"
+            placeholder="https://…" />
+        </div>
+
+        <div class="field field-wide">
+          <label for="tags">タグ <span>カンマ区切り・最大6個</span></label>
+          <input id="tags" name="tags" maxlength="200" placeholder="tokyo, night, architecture" />
+        </div>
+
+        <div class="honeypot" aria-hidden="true">
+          <label for="website">Website</label>
+          <input id="website" name="website" tabindex="-1" autocomplete="off" />
+        </div>
+
+        <div class="form-note">
+          <span aria-hidden="true">◎</span>
+          <p>
+            送信されるのはURLと上の情報だけです。<strong>3Dデータ本体（.sog / .ply）はコピーしません。</strong>
+            非公開のキャプチャは受け付けられません。
+          </p>
+        </div>
+
+        <p class="form-message is-error" id="form-error" role="alert" hidden></p>
+        <div class="form-message is-success" id="form-success" role="status" hidden></div>
+
+        <div class="form-actions field-wide">
+          <button class="btn btn-primary" type="submit" id="submit-button">登録を申請する</button>
+          <span class="hint" id="submit-hint" hidden>確認しています…</span>
+        </div>
+      </form>
+    ) : (
+      <div class="api-missing">
+        <p class="eyebrow">Not configured</p>
+        <h2>受付APIがまだ設定されていません。</h2>
+        <p>
+          このフォームは Cloudflare Worker に送信します。ビルド時に
+          <code>PUBLIC_API_BASE_URL</code> が設定されていないため、いまは受け付けられません。
+          リポジトリから直接登録することもできます。
+        </p>
+        <pre>npm run add '&lt;共有URL&gt;' --tags 'tokyo'
+npm run thumbs</pre>
+      </div>
+    )}
+  </section>
+</Base>
+
+<script>
+  import { normalizeCaptureInput } from "../lib/capture-id";
+
+  const form = document.getElementById("submit-form") as HTMLFormElement | null;
+  if (form) {
+    // The message sits below a long form; showing it is not enough if it lands
+    // off-screen, so move it into view whenever it appears.
+    const reveal = (element: HTMLElement) => {
+      element.hidden = false;
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+    };
+    const urlInput = document.getElementById("insta360_url") as HTMLInputElement;
+    const preview = document.getElementById("id-preview")!;
+    const marker = preview.querySelector(".marker")!;
+    const idValue = document.getElementById("id-value")!;
+    const idError = document.getElementById("id-error")!;
+    const errorBox = document.getElementById("form-error")!;
+    const successBox = document.getElementById("form-success")!;
+    const button = document.getElementById("submit-button") as HTMLButtonElement;
+    const hint = document.getElementById("submit-hint")!;
+
+    // The browser and `npm run add` share this validator, so a URL accepted
+    // here is accepted by the importer for the same reasons.
+    function readId(): string | null {
+      const raw = urlInput.value.trim();
+      if (!raw) {
+        preview.className = "id-preview";
+        marker.textContent = "→";
+        idValue.textContent = "GS3DG…";
+        idError.hidden = true;
+        return null;
+      }
+      try {
+        const id = normalizeCaptureInput(raw);
+        preview.className = "id-preview is-valid";
+        marker.textContent = "✓";
+        idValue.textContent = id;
+        idError.hidden = true;
+        return id;
+      } catch (error) {
+        preview.className = "id-preview is-error";
+        marker.textContent = "!";
+        idValue.textContent = "—";
+        idError.textContent = error instanceof Error ? error.message : "URLを確認してください。";
+        idError.hidden = false;
+        return null;
+      }
+    }
+
+    urlInput.addEventListener("input", () => {
+      readId();
+      errorBox.hidden = true;
+    });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const id = readId();
+      errorBox.hidden = true;
+      successBox.hidden = true;
+
+      if (!id) {
+        errorBox.textContent = "先に有効な公開URLを入力してください。";
+        reveal(errorBox);
+        urlInput.focus();
+        return;
+      }
+
+      const data = new FormData(form);
+      button.disabled = true;
+      hint.hidden = false;
+
+      try {
+        const response = await fetch(form.dataset.endpoint!, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            insta360_url: id,
+            title: data.get("title"),
+            description: data.get("description"),
+            source_author: data.get("source_author"),
+            source_post_url: data.get("source_post_url"),
+            tags: data.get("tags"),
+            website: data.get("website"),
+          }),
+        });
+        const payload = (await response.json().catch(() => null)) as
+          | { ok?: boolean; error?: string; capture?: { title?: string | null } }
+          | null;
+
+        if (!response.ok || !payload?.ok) {
+          throw new Error(payload?.error ?? "送信できませんでした。時間をおいて試してください。");
+        }
+
+        const name = payload.capture?.title;
+        successBox.innerHTML =
+          `<strong>受け付けました。</strong>${name ? `「${name}」の` : ""}公開状態を確認しました。` +
+          "内容を確認のうえ掲載します。反映まで少し時間がかかります。";
+        reveal(successBox);
+        form.reset();
+        readId();
+      } catch (error) {
+        errorBox.textContent =
+          error instanceof Error ? error.message : "送信できませんでした。";
+        reveal(errorBox);
+      } finally {
+        button.disabled = false;
+        hint.hidden = true;
+      }
+    });
+  }
+</script>

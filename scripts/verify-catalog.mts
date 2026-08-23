@@ -36,7 +36,9 @@ for (const id of ids) {
     continue;
   }
 
-  const status = lookup.metadata.available ? "available" : "unavailable";
+  // A capture Insta360 no longer knows about is genuinely gone.
+  const status =
+    lookup.state === "not_found" || !lookup.metadata.available ? "unavailable" : "available";
   const flipped = status !== capture.status;
 
   if (flipped) {
@@ -50,10 +52,11 @@ for (const id of ids) {
     await writeCapture({
       ...capture,
       status,
-      last_checked_at: lookup.metadata.checked_at,
+      last_checked_at: new Date().toISOString(),
       // Refresh facts Insta360 owns; leave reviewed prose alone.
-      captured_at: lookup.metadata.captured_at ?? capture.captured_at,
-      camera: lookup.metadata.camera ?? capture.camera,
+      captured_at:
+        lookup.state === "ok" ? lookup.metadata.captured_at ?? capture.captured_at : capture.captured_at,
+      camera: lookup.state === "ok" ? lookup.metadata.camera ?? capture.camera : capture.camera,
     });
   }
 }

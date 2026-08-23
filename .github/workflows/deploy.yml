@@ -40,7 +40,11 @@ jobs:
 
       - run: npm test
 
+      # The forms post to the Worker. Set this repository variable to the
+      # deployed API origin; without it the forms say so instead of failing.
       - run: npm run build
+        env:
+          PUBLIC_API_BASE_URL: ${{ vars.PUBLIC_API_BASE_URL }}
 
       - uses: actions/configure-pages@v5
 

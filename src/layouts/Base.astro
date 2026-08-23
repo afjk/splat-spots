@@ -59,6 +59,7 @@ const canonical = absolute(path);
         </a>
         <nav class="site-nav">
           <a href={href("/")}>Gallery</a>
+          <a href={href("/submit")}>Submit</a>
           <a class="optional" href={href("/about")}>About</a>
           <a class="optional" href="https://github.com/afjk/insta360-sog-xr-viewer" target="_blank" rel="noreferrer">Viewer ↗</a>
           <a href="https://github.com/afjk/splat-spots" target="_blank" rel="noreferrer">GitHub ↗</a>
@@ -80,7 +81,7 @@ const canonical = absolute(path);
         <nav>
           <a href={href("/about")}>About</a>
           <a href="https://github.com/afjk/splat-spots" target="_blank" rel="noreferrer">Source</a>
-          <a href="https://github.com/afjk/splat-spots/issues/new" target="_blank" rel="noreferrer">削除・修正依頼</a>
+          <a href={href("/report")}>削除・修正依頼</a>
         </nav>
       </div>
     </footer>

@@ -5,10 +5,16 @@
 
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import {
+  CAPTURE_ID_PATTERN,
+  canonicalInsta360Url,
+  normalizeCaptureInput,
+} from "../../src/lib/capture-id.ts";
+
+// Re-exported so scripts have one import for catalog concerns.
+export { CAPTURE_ID_PATTERN, canonicalInsta360Url, normalizeCaptureInput };
 
 export const CAPTURES_DIR = path.join(process.cwd(), "data", "captures");
-
-export const CAPTURE_ID_PATTERN = /^GS3DG[A-Za-z0-9]{16,80}$/;
 
 export type CaptureStatus = "available" | "unavailable";
 
@@ -42,43 +48,6 @@ const FIELD_ORDER: (keyof CaptureRecord)[] = [
   "status",
   "tags",
 ];
-
-export function canonicalInsta360Url(id: string): string {
-  return `https://app.insta360.com/3dspace/detail/${id}`;
-}
-
-/**
- * Accepts a bare GS3DG id or an `app.insta360.com/3dspace/detail/...` share URL
- * and returns the canonical id. Anything else is rejected loudly: a typo must
- * not become a catalog entry pointing nowhere.
- */
-export function normalizeCaptureInput(input: string): string {
-  const trimmed = input.trim();
-  if (!trimmed) throw new Error("Insta360の公開URLまたはIDを指定してください。");
-  if (CAPTURE_ID_PATTERN.test(trimmed)) return trimmed;
-
-  let url: URL;
-  try {
-    url = new URL(trimmed);
-  } catch {
-    throw new Error(`URLとして読めません: ${trimmed}`);
-  }
-
-  if (url.hostname.toLowerCase() !== "app.insta360.com") {
-    throw new Error("app.insta360.com の公開URLだけを登録できます。");
-  }
-
-  const segments = url.pathname.split("/").filter(Boolean);
-  if (segments.length !== 3 || segments[0] !== "3dspace" || segments[1] !== "detail") {
-    throw new Error("Spatial Captureの詳細URL (/3dspace/detail/...) を指定してください。");
-  }
-
-  const id = decodeURIComponent(segments[2]);
-  if (!CAPTURE_ID_PATTERN.test(id)) {
-    throw new Error(`有効なGS3DG IDを見つけられませんでした: ${id}`);
-  }
-  return id;
-}
 
 export function capturePath(id: string): string {
   return path.join(CAPTURES_DIR, `${id}.json`);

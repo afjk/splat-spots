@@ -56,6 +56,9 @@ async function main(): Promise<void> {
   }
 
   const lookup = await lookupCapture(id);
+  if (lookup.state === "not_found") {
+    throw new Error(`そのCaptureが見つかりません: ${id}`);
+  }
   if (lookup.state === "unreachable") {
     throw new Error(`Insta360 に確認できませんでした: ${lookup.reason}`);
   }
