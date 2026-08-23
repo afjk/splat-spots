@@ -4,11 +4,11 @@ compatibility_date = "2026-05-22"
 compatibility_flags = ["nodejs_compat"]
 
 # Created with:  npx wrangler d1 create splat-spots
-# Paste the returned database_id below.
+# The id identifies the database; it is not a secret.
 [[d1_databases]]
 binding = "DB"
 database_name = "splat-spots"
-database_id = "REPLACE_WITH_DATABASE_ID"
+database_id = "9824b21d-8e22-40dd-b510-ad2178c2e98f"
 
 [vars]
 # Extra origins allowed to call the API, comma separated. The production
