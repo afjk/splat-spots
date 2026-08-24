@@ -7,8 +7,10 @@
  * fetching the share page, so nothing here behaves like a bot against someone
  * else's service.
  *
- * Nothing is reviewed before it appears. What holds the line instead is the
- * shape check, an hourly cap per client, and removal on request.
+ * Intake asks for one shared submission key; everything else stays open, and
+ * the gallery is readable by anyone. Nothing is reviewed before it appears.
+ * What holds the line instead is that key, the shape check, an hourly cap per
+ * client, and removal on request.
  */
 
 import {
@@ -32,6 +34,8 @@ import {
 
 export interface Env {
   DB: D1Database;
+  /** The one shared key intake asks for. Set with `wrangler secret put SUBMISSION_KEY`. */
+  SUBMISSION_KEY?: string;
   /** Bearer token for the maintainer view. Set with `wrangler secret put QUEUE_TOKEN`. */
   QUEUE_TOKEN?: string;
   /** Comma separated extra origins, for local development. */
@@ -182,6 +186,21 @@ async function clientKey(request: Request): Promise<string> {
     .join("");
 }
 
+/**
+ * The one gate on intake. A single shared key, held as a Worker Secret: the
+ * value is compared and then dropped — never stored, logged, or returned.
+ *
+ * An unset or empty secret rejects everything. A deploy that forgot the secret
+ * must fail closed; the alternative is a site anyone can write to by accident.
+ */
+function submissionKeyAccepted(payload: Record<string, unknown>, env: Env): boolean {
+  const expected = typeof env.SUBMISSION_KEY === "string" ? env.SUBMISSION_KEY : "";
+  if (!expected) return false;
+  const presented =
+    typeof payload.submission_key === "string" ? payload.submission_key : "";
+  return presented === expected;
+}
+
 /** A D1 row as the gallery consumes it: same shape as a `data/captures` record. */
 function asCapture(row: SubmissionRow): Record<string, unknown> {
   let tags: string[] = [];
@@ -221,6 +240,11 @@ async function handleSubmission(request: Request, env: Env): Promise<Response> {
   // Bots fill hidden fields. Accept without writing so they learn nothing.
   if (str(payload.website, 200)) {
     return json({ ok: true, status: "published" }, 201, request, env);
+  }
+
+  // Before anything is parsed, counted, or written.
+  if (!submissionKeyAccepted(payload, env)) {
+    return json({ error: "投稿キーが正しくありません。" }, 403, request, env);
   }
 
   let id: string;

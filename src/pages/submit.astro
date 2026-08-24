@@ -25,6 +25,18 @@ const endpoint = apiUrl("/api/submissions");
     {API_CONFIGURED ? (
       <form class="form-grid" id="submit-form" data-endpoint={endpoint} novalidate>
         <div class="field field-wide">
+          <label for="submission_key">投稿キー <b>*</b></label>
+          <input
+            id="submission_key"
+            name="submission_key"
+            type="password"
+            autocomplete="off"
+            required
+          />
+          <span class="hint">投稿キーを持っている人だけ追加できます。</span>
+        </div>
+
+        <div class="field field-wide">
           <label for="url">Spatial Capture の公開URL <b>*</b></label>
           <input
             id="url"
@@ -306,6 +318,7 @@ const endpoint = apiUrl("/api/submissions");
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
+            submission_key: data.get("submission_key"),
             url: id,
             title: data.get("title"),
             author: data.get("author"),
