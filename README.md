@@ -111,7 +111,7 @@ npx wrangler d1 execute splat-spots --remote -c worker/wrangler.toml \
 
 | エンドポイント | 用途 |
 |---|---|
-| `POST /api/submissions` | URL を検証して D1 へ。**その時点で掲載**。サムネイルもここ |
+| `POST /api/submissions` | 投稿キーを確認し、URL を検証して D1 へ。**その時点で掲載**。サムネイルもここ |
 | `GET /api/captures` | ライブなカタログとサムネイルの一覧 |
 | `GET /api/thumbnails/<id>` | サムネイル1枚（URL に version が入るので長期キャッシュ） |
 | `POST /api/reports` | 削除・修正依頼を D1 へ |
@@ -123,6 +123,7 @@ npx wrangler d1 execute splat-spots --remote -c worker/wrangler.toml \
 
 事前の確認がない代わりに、次を置いています。
 
+- 投稿キー（`SUBMISSION_KEY` と一致しなければ 403。閲覧・削除依頼には不要）
 - ハニーポット項目（埋まっていたら保存せず成功を返す）
 - 1時間あたりの投稿数の上限（投稿20 / 依頼10。IP はハッシュ化して数えるだけ）
 - 投稿者が入れた文字列は必ず `textContent` で描画（`src/lib/live-card.ts`）
@@ -133,11 +134,30 @@ npx wrangler d1 execute splat-spots --remote -c worker/wrangler.toml \
 （`src/lib/thumbnail.ts`）。縦長でもパノラマでも切り落とさず全体を入れ、余白は
 自分自身をぼかしたもので埋めます。EXIF は焼き直しの過程で落ちます。
 
+### 投稿キー設定
+
+登録フォームは投稿キーを1つだけ要求します。**キーを知っている人だけが追加でき、
+ギャラリーの閲覧と削除依頼にはキーは要りません。**
+
+```bash
+wrangler secret put SUBMISSION_KEY
+```
+
+キーを変更したくなった場合も、忘れた場合も、**同じコマンドをもう一度実行すれば
+新しいキーへ置き換わります。**古い値を復元する手段はなく、その必要もありません。
+
+Secret の値は後から読み出せません。管理者が控えておきたければ、パスワードマネージャー
+などへ自分で保存しておきます。
+
+**未設定・空のままだと、投稿はすべて 403 で拒否されます。**設定ミスで誰でも投稿できる
+状態になるより、誰も投稿できないほうが安全なためです。
+
 ### セットアップ
 
 ```bash
 npx wrangler login
 npx wrangler d1 create splat-spots          # 出力の database_id を worker/wrangler.toml へ
+npx wrangler secret put SUBMISSION_KEY -c worker/wrangler.toml
 npx wrangler secret put QUEUE_TOKEN -c worker/wrangler.toml
 npx wrangler deploy -c worker/wrangler.toml
 ```
@@ -151,7 +171,7 @@ GitHub Actions から Worker を自動デプロイするには、シークレッ
 ### ローカルで動かす
 
 ```bash
-echo 'QUEUE_TOKEN=local-test-token' > worker/.dev.vars
+printf 'SUBMISSION_KEY=local-test-key\nQUEUE_TOKEN=local-test-token\n' > worker/.dev.vars
 cd worker && npx wrangler dev            # .dev.vars は cwd から読まれる
 
 # 別ターミナルで

@@ -15,5 +15,6 @@ database_id = "9824b21d-8e22-40dd-b510-ad2178c2e98f"
 # origin (https://afjk.github.io) is always allowed.
 ALLOWED_ORIGINS = "http://localhost:4321"
 
-# QUEUE_TOKEN is a secret, not a var:
+# Secrets, not vars — neither value belongs in this file:
+#   npx wrangler secret put SUBMISSION_KEY   # required; intake rejects everything without it
 #   npx wrangler secret put QUEUE_TOKEN
